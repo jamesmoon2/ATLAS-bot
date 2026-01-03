@@ -23,6 +23,7 @@ Thank you for your interest in contributing to ATLAS Bot! This document provides
 ### Making Changes
 
 1. Create a new branch for your feature/fix:
+
    ```bash
    git checkout -b feature/your-feature-name
    ```
@@ -30,6 +31,7 @@ Thank you for your interest in contributing to ATLAS Bot! This document provides
 2. Make your changes and ensure they follow our coding standards
 
 3. Run the linters:
+
    ```bash
    ruff check .
    ruff format .
@@ -55,6 +57,7 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/):
 ### Pull Request Process
 
 1. Push your branch to your fork:
+
    ```bash
    git push origin feature/your-feature-name
    ```

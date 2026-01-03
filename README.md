@@ -85,14 +85,14 @@ stateDiagram-v2
 
 ## Features
 
-| Feature | Description |
-|---------|-------------|
-| 🔄 **Session Continuity** | Maintains conversation context using `--continue` |
-| 🏠 **Channel Isolation** | Each Discord channel gets its own Claude session |
-| 🪝 **Configurable Hooks** | Inject system prompts and context at session start |
-| 🔧 **Tool Access** | Pre-approved tools: Read, Write, Edit, Glob, Grep, Bash |
-| ⏱️ **Timeout Protection** | 10-minute timeout for long-running requests |
-| 📋 **Daily Digest** | Optional morning briefing via Discord webhook |
+| Feature                   | Description                                             |
+| ------------------------- | ------------------------------------------------------- |
+| 🔄 **Session Continuity** | Maintains conversation context using `--continue`       |
+| 🏠 **Channel Isolation**  | Each Discord channel gets its own Claude session        |
+| 🪝 **Configurable Hooks** | Inject system prompts and context at session start      |
+| 🔧 **Tool Access**        | Pre-approved tools: Read, Write, Edit, Glob, Grep, Bash |
+| ⏱️ **Timeout Protection** | 10-minute timeout for long-running requests             |
+| 📋 **Daily Digest**       | Optional morning briefing via Discord webhook           |
 
 ## Requirements
 
@@ -124,14 +124,14 @@ python bot.py
 
 ### Environment Variables
 
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `DISCORD_TOKEN` | Discord bot token | ✅ Yes |
-| `VAULT_PATH` | Path to your notes/vault directory | ✅ Yes |
-| `SESSIONS_DIR` | Where to store session data | No |
-| `BOT_DIR` | Bot installation directory | No |
-| `SYSTEM_PROMPT_PATH` | Path to system prompt file | No |
-| `DISCORD_WEBHOOK_URL` | Webhook for daily digest | No |
+| Variable              | Description                        | Required |
+| --------------------- | ---------------------------------- | -------- |
+| `DISCORD_TOKEN`       | Discord bot token                  | ✅ Yes   |
+| `VAULT_PATH`          | Path to your notes/vault directory | ✅ Yes   |
+| `SESSIONS_DIR`        | Where to store session data        | No       |
+| `BOT_DIR`             | Bot installation directory         | No       |
+| `SYSTEM_PROMPT_PATH`  | Path to system prompt file         | No       |
+| `DISCORD_WEBHOOK_URL` | Webhook for daily digest           | No       |
 
 ### File Structure
 
@@ -176,13 +176,14 @@ Hooks are defined in `bot.py` and run when a new session starts:
 ### Triggering the Bot
 
 The bot responds to:
+
 - Any message in a channel named `#atlas`
 - Direct @mentions in any channel
 
 ### Commands
 
-| Command | Description |
-|---------|-------------|
+| Command             | Description                         |
+| ------------------- | ----------------------------------- |
 | `!reset` / `!clear` | Reset the current channel's session |
 
 ### Example Conversation
@@ -213,6 +214,7 @@ flowchart LR
 ```
 
 Setup:
+
 1. Create a Discord webhook in your channel
 2. Add `DISCORD_WEBHOOK_URL` to `.env`
 3. Add cron job: `0 6 * * * /path/to/run_digest.sh`
