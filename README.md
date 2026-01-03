@@ -13,33 +13,33 @@ A Discord bot that wraps [Claude Code CLI](https://github.com/anthropics/claude-
 flowchart TB
     subgraph Discord
         User[User]
-        Channel["#atlas Channel"]
+        Channel[atlas Channel]
     end
 
     subgraph ATLAS_Bot[ATLAS Bot]
         Bot[bot.py]
-        Sessions[(sessions/)]
+        Sessions[sessions]
     end
 
     subgraph Claude_CLI[Claude Code CLI]
-        Claude["claude --continue --print"]
+        Claude[claude CLI]
         Hooks[Session Hooks]
     end
 
     subgraph Filesystem[Local Filesystem]
-        Vault[Vault/Notes]
+        Vault[Vault Notes]
         Files[Project Files]
     end
 
-    User -->|Message| Channel
-    Channel -->|Event| Bot
-    Bot -->|Spawn Process| Claude
-    Bot -->|Store Session| Sessions
-    Claude -->|Read/Write| Vault
-    Claude -->|Read/Write| Files
-    Hooks -->|Inject Context| Claude
-    Claude -->|Response| Bot
-    Bot -->|Reply| Channel
+    User --> Channel
+    Channel --> Bot
+    Bot --> Claude
+    Bot --> Sessions
+    Claude --> Vault
+    Claude --> Files
+    Hooks --> Claude
+    Claude --> Bot
+    Bot --> Channel
 ```
 
 ## Message Flow
@@ -52,16 +52,16 @@ sequenceDiagram
     participant C as Claude CLI
     participant F as Filesystem
 
-    U->>D: Send message in #atlas
+    U->>D: Send message
     D->>B: on_message event
-    B->>B: Check channel/mention
-    B->>B: Load/create session
-    B->>C: claude --continue -p "message"
+    B->>B: Check channel
+    B->>B: Load session
+    B->>C: Run claude command
 
-    Note over C: Session hooks run on first message
+    Note over C: Session hooks run
     C->>F: Read system prompt
-    C->>F: Read/write files as needed
-    C->>B: Response (stdout)
+    C->>F: Read and write files
+    C->>B: Response
     B->>D: Send response
     D->>U: Display message
 ```
@@ -70,25 +70,17 @@ sequenceDiagram
 
 ```mermaid
 stateDiagram-v2
-    [*] --> NewSession: First message in channel
+    [*] --> NewSession: First message
 
-    NewSession --> HooksRun: Create session dir
-    HooksRun --> Active: Load system prompt & context
+    NewSession --> HooksRun: Create session
+    HooksRun --> Active: Load context
 
     Active --> Active: Process messages
-    Active --> Reset: User sends !reset
-    Active --> Timeout: 10 min timeout
+    Active --> Reset: User resets
+    Active --> Timeout: Timeout
 
     Reset --> [*]: Clear session
-    Timeout --> Active: Next message resumes
-
-    note right of HooksRun
-        SessionStart hooks:
-        - System prompt
-        - Date/time
-        - Tasks due
-        - Recent changes
-    end note
+    Timeout --> Active: Resume
 ```
 
 ## Features
