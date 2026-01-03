@@ -13,21 +13,21 @@ A Discord bot that wraps [Claude Code CLI](https://github.com/anthropics/claude-
 flowchart TB
     subgraph Discord
         User[User]
-        Channel[atlas Channel]
+        Channel[Discord Channel]
     end
 
-    subgraph ATLAS_Bot[ATLAS Bot]
+    subgraph ATLAS[ATLAS Bot]
         Bot[bot.py]
-        Sessions[sessions]
+        Sessions[sessions/]
     end
 
-    subgraph Claude_CLI[Claude Code CLI]
+    subgraph CLI[Claude Code CLI]
         Claude[claude CLI]
         Hooks[Session Hooks]
     end
 
-    subgraph Filesystem[Local Filesystem]
-        Vault[Vault Notes]
+    subgraph FS[Local Filesystem]
+        Vault[Vault/Notes]
         Files[Project Files]
     end
 
@@ -52,16 +52,16 @@ sequenceDiagram
     participant C as Claude CLI
     participant F as Filesystem
 
-    U->>D: Send message
+    U->>D: Send message in channel
     D->>B: on_message event
-    B->>B: Check channel
-    B->>B: Load session
-    B->>C: Run claude command
+    B->>B: Check channel/mention
+    B->>B: Load or create session
+    B->>C: claude --continue -p message
 
-    Note over C: Session hooks run
+    Note over C: Session hooks run on first message
     C->>F: Read system prompt
-    C->>F: Read and write files
-    C->>B: Response
+    C->>F: Read/write files as needed
+    C->>B: Response via stdout
     B->>D: Send response
     D->>U: Display message
 ```
@@ -70,17 +70,17 @@ sequenceDiagram
 
 ```mermaid
 stateDiagram-v2
-    [*] --> NewSession: First message
+    [*] --> NewSession: First message in channel
 
-    NewSession --> HooksRun: Create session
-    HooksRun --> Active: Load context
+    NewSession --> HooksRun: Create session dir
+    HooksRun --> Active: Load system prompt and context
 
     Active --> Active: Process messages
-    Active --> Reset: User resets
-    Active --> Timeout: Timeout
+    Active --> Reset: User sends reset command
+    Active --> Timeout: 10 min timeout
 
     Reset --> [*]: Clear session
-    Timeout --> Active: Resume
+    Timeout --> Active: Next message resumes
 ```
 
 ## Features
