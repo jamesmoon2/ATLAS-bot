@@ -12,23 +12,23 @@ A Discord bot that wraps [Claude Code CLI](https://github.com/anthropics/claude-
 ```mermaid
 flowchart TB
     subgraph Discord
-        User[👤 User]
-        Channel[#atlas Channel]
+        User[User]
+        Channel["#atlas Channel"]
     end
 
-    subgraph "ATLAS Bot"
-        Bot[🤖 bot.py]
-        Sessions[(📁 sessions/)]
+    subgraph ATLAS_Bot[ATLAS Bot]
+        Bot[bot.py]
+        Sessions[(sessions/)]
     end
 
-    subgraph "Claude Code CLI"
-        Claude[claude --continue --print]
-        Hooks[🪝 Session Hooks]
+    subgraph Claude_CLI[Claude Code CLI]
+        Claude["claude --continue --print"]
+        Hooks[Session Hooks]
     end
 
-    subgraph "Local Filesystem"
-        Vault[📚 Vault/Notes]
-        Files[📄 Project Files]
+    subgraph Filesystem[Local Filesystem]
+        Vault[Vault/Notes]
+        Files[Project Files]
     end
 
     User -->|Message| Channel
@@ -164,9 +164,9 @@ atlas-bot/
 ```mermaid
 flowchart LR
     subgraph "SessionStart Hooks"
-        A[📜 System Prompt] --> B[📅 Date/Time]
-        B --> C[✅ Tasks Due]
-        C --> D[📝 Recent Changes]
+        A[System Prompt] --> B[Date/Time]
+        B --> C[Tasks Due]
+        C --> D[Recent Changes]
     end
 
     D --> E[Claude receives full context]
@@ -214,10 +214,10 @@ Optional morning briefing posted to Discord:
 
 ```mermaid
 flowchart LR
-    A[⏰ Cron 6 AM] --> B[run_digest.sh]
+    A[Cron 6 AM] --> B[run_digest.sh]
     B --> C[daily_digest.py]
     C --> D[Claude analyzes vault]
-    D --> E[📨 Discord Webhook]
+    D --> E[Discord Webhook]
 ```
 
 Setup:
@@ -252,21 +252,21 @@ ruff format .
 ```mermaid
 flowchart TB
     subgraph "What's Protected"
-        A[🔒 .env - Discord token]
-        B[🔒 sessions/ - Conversation history]
-        C[🔒 System prompt - Your instructions]
+        A[.env - Discord token]
+        B[sessions/ - Conversation history]
+        C[System prompt - Your instructions]
     end
 
     subgraph "What's Allowed"
-        D[📖 Read any file]
-        E[✏️ Write/Edit files]
-        F[🐚 Safe bash commands]
+        D[Read any file]
+        E[Write/Edit files]
+        F[Safe bash commands]
     end
 
     subgraph "What's Blocked"
-        G[🚫 rm - Delete files]
-        H[🚫 chmod - Change permissions]
-        I[🚫 Dangerous commands]
+        G[rm - Delete files]
+        H[chmod - Change permissions]
+        I[Dangerous commands]
     end
 ```
 
