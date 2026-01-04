@@ -30,7 +30,7 @@ CHANNEL_SETTINGS: dict[str, Any] = {
                 "hooks": [
                     {"type": "command", "command": f"cat {SYSTEM_PROMPT_PATH}"},
                     {"type": "command", "command": "echo '\n---\n# Session Context'"},
-                    {"type": "command", "command": "date '+**Current:** %A, %B %d, %Y %H:%M %Z'"},
+                    {"type": "command", "command": "TZ='America/Los_Angeles' date '+**Current:** %A, %B %d, %Y %H:%M %Z'"},
                     {"type": "command", "command": f"{BOT_DIR}/hooks/tasks_summary.sh"},
                     {"type": "command", "command": f"{BOT_DIR}/hooks/recent_changes.sh"},
                 ]
@@ -93,12 +93,29 @@ def ensure_channel_session(channel_id: int) -> str:
 
 
 def reset_channel_session(channel_id: int) -> bool:
-    """Delete a channel's session directory to start fresh."""
+    """Delete a channel's session directory and Claude's session storage."""
     channel_dir = os.path.join(SESSIONS_DIR, str(channel_id))
+
+    # Also clear Claude's session storage in ~/.claude/projects/
+    # Claude stores sessions based on the working directory path
+    abs_channel_dir = os.path.abspath(channel_dir)
+    claude_project_name = abs_channel_dir.replace("/", "-")
+    claude_projects_dir = os.path.expanduser("~/.claude/projects")
+    claude_session_dir = os.path.join(claude_projects_dir, claude_project_name)
+
+    cleared = False
+
+    # Clear local session directory
     if os.path.exists(channel_dir):
         shutil.rmtree(channel_dir)
-        return True
-    return False
+        cleared = True
+
+    # Clear Claude's session storage
+    if os.path.exists(claude_session_dir):
+        shutil.rmtree(claude_session_dir)
+        cleared = True
+
+    return cleared
 
 
 async def run_claude(channel_id: int, message_content: str) -> str:
@@ -111,6 +128,8 @@ async def run_claude(channel_id: int, message_content: str) -> str:
 
         process = await asyncio.create_subprocess_exec(
             "claude",
+            "--model",
+            "sonnet",
             "--continue",
             "--print",
             "--allowedTools",
