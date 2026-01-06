@@ -35,6 +35,20 @@ CHANNEL_SETTINGS: dict[str, Any] = {
                     {"type": "command", "command": f"{BOT_DIR}/hooks/recent_changes.sh"},
                 ]
             }
+        ],
+        "PreToolUse": [
+            {
+                "matcher": "mcp__google-calendar__create-event",
+                "hooks": [
+                    {"type": "command", "command": f"{BOT_DIR}/hooks/calendar_context.sh"}
+                ]
+            },
+            {
+                "matcher": "mcp__google-calendar__update-event",
+                "hooks": [
+                    {"type": "command", "command": f"{BOT_DIR}/hooks/calendar_context.sh"}
+                ]
+            }
         ]
     }
 }
@@ -118,10 +132,29 @@ def reset_channel_session(channel_id: int) -> bool:
     return cleared
 
 
+def get_channel_model(channel_id: int) -> str:
+    """Get the model preference for a channel, default to sonnet."""
+    channel_dir = os.path.join(SESSIONS_DIR, str(channel_id))
+    model_file = os.path.join(channel_dir, "model.txt")
+    if os.path.exists(model_file):
+        with open(model_file, "r") as f:
+            return f.read().strip()
+    return "sonnet"  # default
+
+
+def set_channel_model(channel_id: int, model: str) -> None:
+    """Set the model preference for a channel."""
+    channel_dir = ensure_channel_session(channel_id)
+    model_file = os.path.join(channel_dir, "model.txt")
+    with open(model_file, "w") as f:
+        f.write(model)
+
+
 async def run_claude(channel_id: int, message_content: str) -> str:
     """Run Claude with session continuity for this channel."""
     try:
         channel_dir = ensure_channel_session(channel_id)
+        model = get_channel_model(channel_id)
 
         # Tools allowed for vault file operations
         allowed_tools = "Read,Write,Edit,Glob,Grep,Bash"
@@ -129,7 +162,7 @@ async def run_claude(channel_id: int, message_content: str) -> str:
         process = await asyncio.create_subprocess_exec(
             "claude",
             "--model",
-            "sonnet",
+            model,
             "--continue",
             "--print",
             "--allowedTools",
@@ -195,6 +228,24 @@ async def on_message(message):
         else:
             await message.channel.send("No session to clear.")
         return
+
+    # Handle model command
+    if content.lower().startswith("!model"):
+        parts = content.split()
+        if len(parts) == 1:
+            # Show current model
+            current = get_channel_model(message.channel.id)
+            await message.channel.send(f"Current model: {current}")
+            return
+        elif len(parts) == 2:
+            model = parts[1].lower()
+            if model in ("sonnet", "opus"):
+                set_channel_model(message.channel.id, model)
+                await message.channel.send(f"Switched to {model}.")
+                return
+            else:
+                await message.channel.send("Invalid model. Use: !model sonnet or !model opus")
+                return
 
     if not content:
         await message.channel.send("What do you need?")
