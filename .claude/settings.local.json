@@ -21,9 +21,5 @@
       "Bash(reboot:*)"
     ]
   },
-  "disabledMcpjsonServers": [
-    "google-calendar",
-    "gmail",
-    "oura"
-  ]
+  "disabledMcpjsonServers": ["google-calendar", "gmail", "oura"]
 }
