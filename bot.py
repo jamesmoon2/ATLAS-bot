@@ -4,6 +4,7 @@ import asyncio
 import json
 import os
 import shutil
+import uuid
 from typing import Any
 
 import discord
@@ -21,6 +22,9 @@ SESSIONS_DIR = os.getenv("SESSIONS_DIR", "./sessions")
 BOT_DIR = os.getenv("BOT_DIR", os.path.dirname(os.path.abspath(__file__)))
 SYSTEM_PROMPT_PATH = os.getenv("SYSTEM_PROMPT_PATH", f"{VAULT_PATH}/System/claude.md")
 MAX_RESPONSE_LENGTH = 1900
+
+# Supported media types for Claude Code Read tool (images + PDFs)
+SUPPORTED_MEDIA = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".pdf"}
 
 # Claude settings for each channel session (built dynamically from env vars)
 CHANNEL_SETTINGS: dict[str, Any] = {
@@ -130,6 +134,45 @@ def reset_channel_session(channel_id: int) -> bool:
         cleared = True
 
     return cleared
+
+
+async def download_attachments(channel_id: int, attachments: list) -> list[str]:
+    """Download Discord attachments to session directory."""
+    if not attachments:
+        return []
+
+    channel_dir = ensure_channel_session(channel_id)
+    attachments_dir = os.path.join(channel_dir, "attachments")
+    os.makedirs(attachments_dir, exist_ok=True)
+
+    downloaded = []
+    for att in attachments:
+        _, ext = os.path.splitext(att.filename)
+        if ext.lower() not in SUPPORTED_MEDIA:
+            continue
+
+        unique_name = f"{uuid.uuid4().hex[:8]}_{att.filename}"
+        file_path = os.path.join(attachments_dir, unique_name)
+
+        try:
+            await att.save(file_path)
+            downloaded.append(os.path.abspath(file_path))
+        except Exception as e:
+            print(f"Failed to download {att.filename}: {e}")
+
+    return downloaded
+
+
+def build_prompt_with_files(content: str, file_paths: list[str]) -> str:
+    """Build prompt with file references for Claude to read."""
+    if not file_paths:
+        return content
+
+    files_section = "\n\n[Attached files - use Read tool to view:]\n"
+    for path in file_paths:
+        files_section += f"- {path}\n"
+
+    return (content or "Please analyze the attached file(s).") + files_section
 
 
 def get_channel_model(channel_id: int) -> str:
@@ -247,14 +290,27 @@ async def on_message(message):
                 await message.channel.send("Invalid model. Use: !model sonnet or !model opus")
                 return
 
-    if not content:
+    # Download attachments (images, PDFs, etc.)
+    downloaded_files = []
+    if message.attachments:
+        downloaded_files = await download_attachments(
+            message.channel.id, message.attachments
+        )
+        if downloaded_files:
+            print(f"  Downloaded {len(downloaded_files)} attachment(s)")
+
+    # Build prompt with file references
+    prompt = build_prompt_with_files(content, downloaded_files)
+
+    # Check if we have something to process
+    if not content and not downloaded_files:
         await message.channel.send("What do you need?")
         return
 
-    print(f"  Processing: {content[:50]}")
+    print(f"  Processing: {prompt[:50]}")
 
     async with message.channel.typing():
-        response = await run_claude(message.channel.id, content)
+        response = await run_claude(message.channel.id, prompt)
 
     print(f"  Response length: {len(response)}")
 
