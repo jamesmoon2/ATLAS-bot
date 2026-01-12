@@ -180,7 +180,7 @@ def get_channel_model(channel_id: int) -> str:
     channel_dir = os.path.join(SESSIONS_DIR, str(channel_id))
     model_file = os.path.join(channel_dir, "model.txt")
     if os.path.exists(model_file):
-        with open(model_file, "r") as f:
+        with open(model_file) as f:
             return f.read().strip()
     return "sonnet"  # default
 
