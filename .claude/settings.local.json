@@ -20,5 +20,10 @@
       "Bash(shutdown:*)",
       "Bash(reboot:*)"
     ]
-  }
+  },
+  "disabledMcpjsonServers": [
+    "google-calendar",
+    "gmail",
+    "oura"
+  ]
 }

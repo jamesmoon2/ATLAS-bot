@@ -1,7 +1,10 @@
 #!/bin/bash
 # Tasks Summary Hook - Shows overdue and due-today tasks
+# Note: Central task view is at $TASKS_FILE_PATH (1. Tasks.md in vault root)
+# This hook searches actual task items in project/daily files
 
 VAULT="${VAULT_PATH:-/home/user/vault}"
+TASKS_FILE="${TASKS_FILE_PATH:-$VAULT/1. Tasks.md}"
 TODAY=$(date +%Y-%m-%d)
 
 echo "## Tasks"
