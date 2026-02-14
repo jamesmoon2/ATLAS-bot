@@ -21,3 +21,8 @@ echo "| $(date -d '+5 days' '+%A') | $(date -d '+5 days' '+%A, %b %d') | \`$(dat
 echo "| $(date -d '+6 days' '+%A') | $(date -d '+6 days' '+%A, %b %d') | \`$(date -d '+6 days' '+%Y-%m-%d')\` |"
 echo ""
 echo "**IMPORTANT:** Always use timeZone: \"America/Los_Angeles\" in calendar API calls."
+echo ""
+echo "## Key Contacts"
+echo "| Name | Email |"
+echo "|------|-------|"
+echo "| Contact Name | user@example.com |"
