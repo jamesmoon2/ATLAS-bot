@@ -1,0 +1,22 @@
+[Unit]
+Description=ATLAS Discord Bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=atlas
+WorkingDirectory=${BOT_DIR}
+ExecStart=${BOT_DIR}/venv/bin/python bot.py
+Restart=always
+RestartSec=10
+Environment=PATH=${BOT_DIR}/venv/bin:/usr/local/bin:/usr/bin
+EnvironmentFile=${BOT_DIR}/.env
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=atlas-bot
+
+[Install]
+WantedBy=multi-user.target
