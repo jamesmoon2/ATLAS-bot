@@ -23,12 +23,11 @@ from dotenv import load_dotenv
 import aiohttp
 from croniter import croniter
 
-# Load environment variables from .env file
-BOT_DIR = Path(__file__).parent.parent
-load_dotenv(BOT_DIR / ".env")
-
 # Paths
 BOT_DIR = Path(__file__).parent.parent
+
+# Load environment variables from .env file
+load_dotenv(BOT_DIR / ".env")
 CRON_DIR = Path(__file__).parent
 JOBS_FILE = CRON_DIR / "jobs.json"
 STATE_FILE = CRON_DIR / "state" / "last_runs.json"
@@ -58,42 +57,92 @@ def save_state(state: dict) -> None:
 
 
 def is_job_due(job: dict, state: dict, now: datetime) -> bool:
-    """Check if job should run based on schedule and last run."""
+    """Check if job should run based on schedule and last run.
+
+    Cron schedules in jobs.json are specified in the job's timezone, but system
+    cron runs in UTC. This function converts the schedule to UTC for comparison.
+    """
     from datetime import timedelta
 
     job_id = job["id"]
-    tz = ZoneInfo(job.get("timezone", "UTC"))
-    now_tz = now.astimezone(tz)
+    job_tz = ZoneInfo(job.get("timezone", "UTC"))
 
-    # Start from 2 minutes ago and find the next scheduled time after that
-    two_mins_ago = now_tz - timedelta(minutes=2)
-    cron = croniter(job["schedule"], two_mins_ago)
-    next_scheduled = cron.get_next(datetime)
+    # Convert current UTC time to job's timezone for cron calculation
+    now_in_job_tz = now.astimezone(job_tz)
+
+    # Use croniter in UTC by working with naive datetimes, then re-apply timezone
+    # croniter needs to calculate "next run" in the job's timezone context
+    two_mins_ago = now_in_job_tz - timedelta(minutes=2)
+
+    # Remove timezone for croniter, calculate next run, then re-apply job timezone
+    two_mins_ago_naive = two_mins_ago.replace(tzinfo=None)
+    cron = croniter(job["schedule"], two_mins_ago_naive)
+    next_scheduled_naive = cron.get_next(datetime)
+    next_scheduled = next_scheduled_naive.replace(tzinfo=job_tz)
 
     # Check if that scheduled time is in the past (meaning it's due) and within our window
-    time_since_scheduled = (now_tz - next_scheduled).total_seconds()
+    time_since_scheduled = (now_in_job_tz - next_scheduled).total_seconds()
     if time_since_scheduled < 0 or time_since_scheduled > 120:
         return False  # Not in execution window
 
     # Check if we've already run for this scheduled time
-    last_run_str = state.get(job_id)
-    if last_run_str:
-        try:
-            last_run = datetime.fromisoformat(last_run_str)
-            # If last run was after or at the scheduled time, skip
-            if last_run >= next_scheduled:
-                return False
-        except ValueError:
-            pass  # Invalid timestamp, proceed with run
+    job_state = state.get(job_id)
+    if job_state:
+        # Support both old format (plain string) and new format (dict)
+        last_run_str = job_state["last_run"] if isinstance(job_state, dict) else job_state
+        if last_run_str:
+            try:
+                last_run = datetime.fromisoformat(last_run_str)
+                if last_run >= next_scheduled:
+                    return False
+            except ValueError:
+                pass  # Invalid timestamp, proceed with run
+
+        # Check if job is disabled due to consecutive failures
+        if isinstance(job_state, dict) and job_state.get("failures", 0) >= 3:
+            return False
 
     return True
+
+
+async def run_shell_command(job: dict) -> tuple[str, bool]:
+    """Execute shell command directly. Returns (output, success)."""
+    command = job["command"]
+    timeout = job.get("timeout_seconds", 180)
+
+    try:
+        process = await asyncio.create_subprocess_shell(
+            command,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            env={**os.environ}
+        )
+
+        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout)
+
+        output = stdout.decode().strip()
+        error_output = stderr.decode().strip()
+
+        # Combine stdout and stderr for logging
+        combined_output = output
+        if error_output:
+            combined_output += f"\n\nStderr:\n{error_output}"
+
+        success = process.returncode == 0
+        return combined_output or "Command executed (no output)", success
+
+    except asyncio.TimeoutError:
+        process.kill()
+        return f"Command timed out after {timeout} seconds.", False
+    except Exception as e:
+        return f"Error executing command: {str(e)}", False
 
 
 async def run_claude(job: dict) -> tuple[str, bool]:
     """Execute Claude CLI with job prompt. Returns (output, success)."""
     allowed_tools = ",".join(job.get("allowed_tools", ["Read"]))
     timeout = job.get("timeout_seconds", 180)
-    model = job.get("model", "sonnet")
+    model = job.get("model", "opus")
 
     # Inject current datetime into prompt (in job's timezone)
     tz = ZoneInfo(job.get("timezone", "America/Los_Angeles"))
@@ -122,13 +171,14 @@ async def run_claude(job: dict) -> tuple[str, bool]:
         stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout)
 
         output = stdout.decode().strip()
-        if not output and stderr:
-            error_msg = stderr.decode().strip()
-            # Filter out common non-error stderr messages
-            if "error" in error_msg.lower() or "failed" in error_msg.lower():
-                return f"Error: {error_msg}", False
+        error_output = stderr.decode().strip() if stderr else ""
 
-        return output or "No response generated.", bool(output)
+        if not output:
+            if error_output:
+                return f"Error (stderr): {error_output}", False
+            return "No response generated (empty stdout, no stderr).", False
+
+        return output, True
 
     except asyncio.TimeoutError:
         process.kill()
@@ -176,19 +226,39 @@ async def execute_job(job: dict) -> bool:
 
     log(f"Executing job: {job_name}")
 
-    output, success = await run_claude(job)
+    # Determine job type and execute accordingly
+    if "command" in job:
+        # Shell command job
+        output, success = await run_shell_command(job)
+    elif "prompt" in job:
+        # Claude prompt job
+        output, success = await run_claude(job)
+    else:
+        output = "Error: Job has neither 'command' nor 'prompt' field"
+        success = False
+
     log_entry += f"\nOutput:\n{output}\n"
 
     # Handle notification
     notify = job.get("notify", {})
     notify_type = notify.get("type", "silent")
 
-    if notify_type == "webhook" and success:
-        today = datetime.now().strftime("%A, %B %d, %Y")
-        header = f"**{job_name}** - {today}\n\n"
-        webhook_success = await send_webhook(header + output, notify)
-        log_entry += f"\nWebhook: {'sent' if webhook_success else 'failed'}\n"
-        log(f"Webhook {'sent' if webhook_success else 'failed'} for {job_name}")
+    if notify_type == "webhook":
+        # Check for output suppression
+        suppress_string = notify.get("suppress_if_contains")
+        if suppress_string and suppress_string in output:
+            log(f"Output suppressed for {job_name} (contains '{suppress_string}')")
+            log_entry += f"\nNotification: suppressed (output contains '{suppress_string}')\n"
+        else:
+            tz = ZoneInfo(job.get("timezone", "America/Los_Angeles"))
+            today = datetime.now(tz).strftime("%A, %B %d, %Y")
+            if success:
+                header = f"**{job_name}** - {today}\n\n"
+            else:
+                header = f"**{job_name} - FAILED** - {today}\n\n"
+            webhook_success = await send_webhook(header + output, notify)
+            log_entry += f"\nWebhook: {'sent' if webhook_success else 'failed'}\n"
+            log(f"Webhook {'sent' if webhook_success else 'failed'} for {job_name}")
     elif notify_type == "silent":
         log_entry += "\nNotification: silent (logged only)\n"
 
@@ -226,31 +296,64 @@ async def main(run_now: str | None = None):
             log("Skipping job without id")
             continue
 
+        # Normalize state entry to new dict format
+        if isinstance(state.get(job_id), str):
+            state[job_id] = {"last_run": state[job_id], "failures": 0}
+
+        job_state = state.get(job_id, {"last_run": None, "failures": 0})
+
         # If --run-now specified, only run that job (skip enabled/due checks)
         if run_now:
             if job_id != run_now:
                 continue
             log(f"Force-running job: {job_id}")
+            # Reset failure count on manual run
+            job_state["failures"] = 0
         else:
             if not job.get("enabled", True):
                 continue
+
+            # Check if disabled due to consecutive failures
+            if job_state.get("failures", 0) >= 3:
+                log(f"Skipping {job_id}: disabled after {job_state['failures']} consecutive failures (use --run-now to reset)")
+                continue
+
             if not is_job_due(job, state, now):
                 continue
 
         # Save state BEFORE executing to prevent race condition with next cron invocation
         # (job may take longer than 1 minute, causing duplicate runs)
         tz = ZoneInfo(job.get("timezone", "UTC"))
-        state[job_id] = now.astimezone(tz).isoformat()
+        job_state["last_run"] = now.astimezone(tz).isoformat()
+        state[job_id] = job_state
         save_state(state)
 
         success = await execute_job(job)
         if success:
+            job_state["failures"] = 0
+            state[job_id] = job_state
+            save_state(state)
             log(f"Job {job_id} completed successfully")
         else:
-            # Job failed - clear state so it retries on next cron cycle
-            del state[job_id]
+            job_state["failures"] = job_state.get("failures", 0) + 1
+            # Clear last_run so it retries on next cron cycle
+            job_state["last_run"] = None
+            state[job_id] = job_state
             save_state(state)
-            log(f"Job {job_id} failed - will retry next run")
+
+            if job_state["failures"] >= 3:
+                log(f"Job {job_id} failed {job_state['failures']} times - disabling until manual --run-now")
+                # Send a disable notification
+                notify = job.get("notify", {})
+                if notify.get("type") == "webhook":
+                    job_name = job.get("name", job_id)
+                    await send_webhook(
+                        f"**{job_name} - DISABLED** after {job_state['failures']} consecutive failures. "
+                        f"Use `python dispatcher.py --run-now {job_id}` to re-enable.",
+                        notify
+                    )
+            else:
+                log(f"Job {job_id} failed ({job_state['failures']}/3) - will retry next run")
 
     # If --run-now was specified but job wasn't found
     if run_now and not any(j.get("id") == run_now for j in jobs):
