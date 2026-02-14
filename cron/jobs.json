@@ -1,0 +1,264 @@
+{
+  "jobs": [
+    {
+      "id": "morning_briefing",
+      "name": "Morning Briefing",
+      "schedule": "30 5 * * *",
+      "timezone": "America/Los_Angeles",
+      "enabled": true,
+      "model": "opus",
+      "timeout_seconds": 180,
+      "allowed_tools": [
+        "Read",
+        "Skill",
+        "mcp__google-calendar__list-events",
+        "mcp__google-calendar__list-calendars",
+        "mcp__oura__get_daily_sleep",
+        "mcp__oura__get_daily_readiness",
+        "mcp__oura__get_daily_activity",
+        "mcp__weather__get_forecast",
+        "mcp__weather__get_alerts"
+      ],
+      "prompt": "Run the morning-briefing skill for today.",
+      "notify": {
+        "type": "webhook",
+        "url_env": "DISCORD_WEBHOOK_URL",
+        "username": "ATLAS Morning Briefing"
+      }
+    },
+    {
+      "id": "weekly_training_planner",
+      "name": "Weekly Training Planner",
+      "schedule": "0 12 * * 0",
+      "timezone": "America/Los_Angeles",
+      "enabled": true,
+      "model": "opus",
+      "timeout_seconds": 300,
+      "allowed_tools": [
+        "Read",
+        "Edit",
+        "Glob",
+        "Skill",
+        "mcp__oura__get_daily_sleep",
+        "mcp__oura__get_daily_readiness",
+        "mcp__oura__get_daily_activity",
+        "mcp__oura__analyze_health_trends",
+        "mcp__oura__calculate_stress_resilience",
+        "mcp__google-calendar__list-events",
+        "mcp__google-calendar__search-events",
+        "mcp__google-calendar__create-event",
+        "mcp__google-calendar__delete-event"
+      ],
+      "prompt": "Run the weekly-training-planner skill.",
+      "notify": {
+        "type": "webhook",
+        "url_env": "DISCORD_WEBHOOK_URL",
+        "username": "ATLAS Weekly Planner"
+      }
+    },
+    {
+      "id": "mcp_health_check",
+      "name": "MCP Health Check",
+      "schedule": "0 6 * * 1",
+      "timezone": "America/Los_Angeles",
+      "enabled": true,
+      "model": "haiku",
+      "timeout_seconds": 60,
+      "allowed_tools": [
+        "mcp__google-calendar__list-calendars",
+        "mcp__gmail__list_email_labels"
+      ],
+      "prompt": "Perform a health check on MCP integrations.\n\n**Current Time:** {current_datetime}\n\n## Instructions\n\n1. **Google Calendar** - Call list-calendars to verify OAuth token is valid\n2. **Gmail** - Call list_email_labels to verify Gmail OAuth token is valid\n\n## Output Format\n\nIf all checks pass:\n```\nMCP Health Check: All systems operational\n- Google Calendar: OK\n- Gmail: OK\n```\n\nIf any check fails, report the specific error:\n```\nMCP Health Check: ISSUES DETECTED\n- Google Calendar: [OK or error message]\n- Gmail: [OK or error message]\n\nAction Required: Re-run authentication for failed services:\nGOOGLE_OAUTH_CREDENTIALS=\"$HOME/.config/google-calendar-mcp/gcp-oauth.keys.json\" npx @cocal/google-calendar-mcp auth\n```",
+      "notify": {
+        "type": "webhook",
+        "url_env": "DISCORD_WEBHOOK_URL",
+        "username": "ATLAS Health Monitor"
+      }
+    },
+    {
+      "id": "stale_project_detector",
+      "name": "Stale Project Detector",
+      "schedule": "0 8 * * 6",
+      "timezone": "America/Los_Angeles",
+      "enabled": true,
+      "model": "opus",
+      "timeout_seconds": 120,
+      "allowed_tools": [
+        "Bash",
+        "Read",
+        "Glob"
+      ],
+      "prompt": "Scan for stale projects in the vault.\n\n**Current Time:** {current_datetime}\n\n## Instructions\n\n1. **List Projects** - Use Bash to list all project directories:\n   ```\n   ls -1 ${VAULT_PATH}/Projects/\n   ```\n\n2. **Check Each Project** - For each project directory, find the most recently modified .md file:\n   ```\n   find ${VAULT_PATH}/Projects/[PROJECT_NAME] -name \"*.md\" -type f -printf \"%T@ %Tc %p\\n\" | sort -rn | head -1\n   ```\n\n3. **Calculate Staleness** - Compare the modification date to today's date and categorize:\n   - **Needs Attention:** 30-59 days since last modification\n   - **Very Stale:** 60-89 days since last modification\n   - **Consider Archiving:** 90+ days since last modification\n   - **Active:** Less than 30 days (don't report these individually)\n\n4. **Skip Archive** - Do not scan ${VAULT_PATH}/Archive/\n\n## Output Format\n\n**Stale Project Report**\n\n**Needs Attention (30-59 days)**\n- [Project Name] - Last modified: [date] ([X] days ago)\n\n**Very Stale (60-89 days)**\n- [Project Name] - Last modified: [date] ([X] days ago)\n\n**Consider Archiving (90+ days)**\n- [Project Name] - Last modified: [date] ([X] days ago)\n\n---\n**Summary:** [X] stale projects, [Y] active projects\n\nIf no stale projects found, just report: \"All [X] projects are active (modified within 30 days)\"",
+      "notify": {
+        "type": "webhook",
+        "url_env": "DISCORD_WEBHOOK_URL",
+        "username": "ATLAS Project Scanner"
+      }
+    },
+    {
+      "id": "daily_summary",
+      "name": "Daily Summary",
+      "schedule": "55 23 * * *",
+      "timezone": "America/Los_Angeles",
+      "enabled": true,
+      "model": "opus",
+      "timeout_seconds": 180,
+      "allowed_tools": [
+        "Read",
+        "Write",
+        "Edit",
+        "Glob",
+        "Skill"
+      ],
+      "prompt": "Run the daily-summary skill for today.\n\nAfter writing the daily summary, review today's conversations and update ${VAULT_PATH}/System/ATLAS-Context.md if any of the following occurred:\n\n1. **Corrections Log:** Any factual errors ATLAS made today → append to table\n2. **Active Threads:** Project status changes, new threads started, old threads completed → update section\n3. **Preferences Learned:** New interaction preferences expressed → append to section\n4. **Stable Facts:** Any new stable facts learned (weight change, new baseline, etc.) → update table\n5. **Health Baselines:** Changes to training, HRV, sleep patterns → update table\n\nOnly modify sections with actual changes. Do not rewrite unchanged sections.\nSkip this step if nothing changed today.",
+      "notify": {
+        "type": "webhook",
+        "url_env": "DISCORD_WEBHOOK_URL",
+        "username": "ATLAS Daily Summary"
+      }
+    },
+    {
+      "id": "session_archive",
+      "name": "Session Archive & Reset",
+      "schedule": "59 23 * * *",
+      "timezone": "America/Los_Angeles",
+      "enabled": true,
+      "command": "${BOT_DIR}/cron/session_archive.sh",
+      "notify": {
+        "type": "webhook",
+        "url_env": "DISCORD_WEBHOOK_URL",
+        "username": "ATLAS Session Archive"
+      }
+    },
+    {
+      "id": "context_drift",
+      "name": "Context Drift Detector",
+      "schedule": "0 8 * * 0",
+      "timezone": "America/Los_Angeles",
+      "enabled": true,
+      "command": "${BOT_DIR}/cron/context_drift.sh",
+      "notify": {
+        "type": "webhook",
+        "url_env": "DISCORD_WEBHOOK_URL",
+        "username": "ATLAS Context Drift"
+      }
+    },
+    {
+      "id": "med_reminder_wed_am",
+      "name": "Medication Reminder - Wed AM",
+      "schedule": "0 5 * * 3",
+      "timezone": "America/Los_Angeles",
+      "enabled": true,
+      "command": "${BOT_DIR}/cron/med_reminder.sh",
+      "notify": {
+        "type": "webhook",
+        "url_env": "DISCORD_WEBHOOK_URL",
+        "username": "ATLAS Medication"
+      }
+    },
+    {
+      "id": "med_reminder_sat_pm",
+      "name": "Medication Reminder - Sat PM",
+      "schedule": "0 20 * * 6",
+      "timezone": "America/Los_Angeles",
+      "enabled": true,
+      "command": "${BOT_DIR}/cron/med_reminder.sh",
+      "notify": {
+        "type": "webhook",
+        "url_env": "DISCORD_WEBHOOK_URL",
+        "username": "ATLAS Medication"
+      }
+    },
+    {
+      "id": "med_reminder_mon_am",
+      "name": "Medication Reminder - Mon AM",
+      "schedule": "0 5 * * 1",
+      "timezone": "America/Los_Angeles",
+      "enabled": true,
+      "command": "${BOT_DIR}/cron/med_reminder.sh",
+      "notify": {
+        "type": "webhook",
+        "url_env": "DISCORD_WEBHOOK_URL",
+        "username": "ATLAS Medication"
+      }
+    },
+    {
+      "id": "med_reminder_thu_pm",
+      "name": "Medication Reminder - Thu PM",
+      "schedule": "0 20 * * 4",
+      "timezone": "America/Los_Angeles",
+      "enabled": true,
+      "command": "${BOT_DIR}/cron/med_reminder.sh",
+      "notify": {
+        "type": "webhook",
+        "url_env": "DISCORD_WEBHOOK_URL",
+        "username": "ATLAS Medication"
+      }
+    },
+    {
+      "id": "oura_context_update",
+      "name": "Oura Context Update",
+      "schedule": "0 10 * * *",
+      "timezone": "America/Los_Angeles",
+      "enabled": true,
+      "model": "haiku",
+      "timeout_seconds": 60,
+      "allowed_tools": [
+        "Read",
+        "Edit",
+        "Glob",
+        "mcp__oura__get_daily_sleep",
+        "mcp__oura__get_daily_readiness"
+      ],
+      "prompt": "Check if today's workout log exists and is missing Oura context. If so, fetch today's Oura data (sleep from last night, readiness this morning) and update the Context section silently. No output or notification unless there's an error.\n\n**Current Time:** {current_datetime}\n\n## Instructions\n\n1. Check if file exists: `${VAULT_PATH}/Areas/Health/Workout-Logs/YYYY-MM-DD.md` (where date = today)\n2. If file exists, read it and check if the \"Context\" section contains Oura data\n3. If Oura data missing or placeholder present:\n   - Call `get_daily_sleep` for today\n   - Call `get_daily_readiness` for today\n   - Update the Context section with:\n     ```\n     - **Recent Recovery:** Sleep [X], Readiness [Y], HRV Balance [Z]/100 (Oura [date])\n     ```\n4. If no workout log exists or Oura data already present, skip silently\n\n## Expected Behavior\n\n- **Success (update made):** No output\n- **Success (no update needed):** No output  \n- **Error (Oura data unavailable):** Log error but don't fail\n- **Error (file operations failed):** Report error",
+      "notify": null
+    },
+    {
+      "id": "health_pattern_monitor",
+      "name": "Health Pattern Monitor",
+      "schedule": "30 10 * * *",
+      "timezone": "America/Los_Angeles",
+      "enabled": true,
+      "model": "sonnet",
+      "timeout_seconds": 120,
+      "allowed_tools": [
+        "Read",
+        "Skill",
+        "mcp__oura__get_daily_sleep",
+        "mcp__oura__get_daily_readiness",
+        "mcp__oura__get_daily_activity"
+      ],
+      "prompt": "Run the health-pattern-monitor skill.\n\n**Current Time:** {current_datetime}",
+      "notify": {
+        "type": "webhook",
+        "url_env": "DISCORD_WEBHOOK_URL",
+        "username": "ATLAS Health Monitor",
+        "suppress_if_contains": "NO_ALERT"
+      }
+    },
+    {
+      "id": "weekly_review",
+      "name": "Weekly Review",
+      "schedule": "0 20 * * 0",
+      "timezone": "America/Los_Angeles",
+      "enabled": true,
+      "model": "opus",
+      "timeout_seconds": 300,
+      "allowed_tools": [
+        "Read",
+        "Write",
+        "Glob",
+        "Skill",
+        "mcp__oura__get_daily_sleep",
+        "mcp__oura__get_daily_readiness",
+        "mcp__oura__get_daily_activity"
+      ],
+      "prompt": "Run the weekly-review skill for the past 7 days.\n\n**Current Time:** {current_datetime}",
+      "notify": {
+        "type": "webhook",
+        "url_env": "DISCORD_WEBHOOK_URL",
+        "username": "ATLAS Weekly Review"
+      }
+    }
+  ]
+}
