@@ -241,7 +241,7 @@ async def run_claude(channel_id: int, message_content: str) -> str:
             cwd=channel_dir,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
-            env={**os.environ},
+            env={k: v for k, v in os.environ.items() if k != "CLAUDECODE"},
         )
 
         stdout, stderr = await asyncio.wait_for(

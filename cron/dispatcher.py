@@ -165,7 +165,7 @@ async def run_claude(job: dict) -> tuple[str, bool]:
             cwd=str(CRON_DIR),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
-            env={**os.environ, "ANTHROPIC_DISABLE_PROMPT_CACHING": "1"},
+            env={**{k: v for k, v in os.environ.items() if k != "CLAUDECODE"}, "ANTHROPIC_DISABLE_PROMPT_CACHING": "1"},
         )
 
         stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout)
