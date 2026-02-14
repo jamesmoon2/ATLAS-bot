@@ -107,7 +107,12 @@ def is_job_due(job: dict, state: dict, now: datetime) -> bool:
 
 async def run_shell_command(job: dict) -> tuple[str, bool]:
     """Execute shell command directly. Returns (output, success)."""
-    command = job["command"]
+    vault_path = os.getenv("VAULT_PATH", "")
+    command = (
+        job["command"]
+        .replace("{vault_path}", vault_path)
+        .replace("{bot_dir}", str(BOT_DIR))
+    )
     timeout = job.get("timeout_seconds", 180)
 
     try:
@@ -144,12 +149,15 @@ async def run_claude(job: dict) -> tuple[str, bool]:
     timeout = job.get("timeout_seconds", 180)
     model = job.get("model", "opus")
 
-    # Inject current datetime into prompt (in job's timezone)
+    # Inject template variables into prompt
     tz = ZoneInfo(job.get("timezone", "America/Los_Angeles"))
     now = datetime.now(tz)
-    prompt = job["prompt"].replace(
-        "{current_datetime}",
-        now.strftime("%A, %B %d, %Y at %I:%M %p %Z")
+    vault_path = os.getenv("VAULT_PATH", "")
+    prompt = (
+        job["prompt"]
+        .replace("{current_datetime}", now.strftime("%A, %B %d, %Y at %I:%M %p %Z"))
+        .replace("{vault_path}", vault_path)
+        .replace("{bot_dir}", str(BOT_DIR))
     )
 
     try:

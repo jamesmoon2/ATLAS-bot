@@ -4,6 +4,7 @@
 
 set -euo pipefail
 
+VAULT_PATH="${VAULT_PATH:?VAULT_PATH not set}"
 STATE_FILE="${VAULT_PATH}/System/agent-state.json"
 MED_LOG="${VAULT_PATH}/Areas/Health/Medications.md"
 

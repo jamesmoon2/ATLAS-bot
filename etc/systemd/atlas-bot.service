@@ -5,13 +5,14 @@ Wants=network-online.target
 
 [Service]
 Type=simple
+# Update User and paths below to match your installation
 User=atlas
-WorkingDirectory=${BOT_DIR}
-ExecStart=${BOT_DIR}/venv/bin/python bot.py
+WorkingDirectory=/opt/atlas-bot
+ExecStart=/opt/atlas-bot/venv/bin/python bot.py
 Restart=always
 RestartSec=10
-Environment=PATH=${BOT_DIR}/venv/bin:/usr/local/bin:/usr/bin
-EnvironmentFile=${BOT_DIR}/.env
+Environment=PATH=/opt/atlas-bot/venv/bin:/usr/local/bin:/usr/bin
+EnvironmentFile=/opt/atlas-bot/.env
 
 # Logging
 StandardOutput=journal

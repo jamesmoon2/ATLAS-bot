@@ -4,7 +4,7 @@
 # This script is called by cron every minute to check and run scheduled jobs.
 #
 # Crontab entry:
-#   * * * * * ${BOT_DIR}/run_cron.sh
+#   * * * * * /path/to/atlas-bot/run_cron.sh
 #
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

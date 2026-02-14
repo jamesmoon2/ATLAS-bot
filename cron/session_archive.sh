@@ -8,6 +8,7 @@ export TZ="America/Los_Angeles"
 
 DATE=$(date +%Y-%m-%d)
 CHANNEL_ID="${DISCORD_CHANNEL_ID:?DISCORD_CHANNEL_ID not set}"
+BOT_DIR="${BOT_DIR:?BOT_DIR not set}"
 SESSION_DIR="${BOT_DIR}/sessions/${CHANNEL_ID}"
 ARCHIVE_DIR="${SESSION_DIR}/.archive/${DATE}"
 

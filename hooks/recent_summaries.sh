@@ -2,7 +2,7 @@
 # Inject last 3 days of ATLAS conversation summaries into session context
 # Used by .claude/settings.json SessionStart hook
 
-VAULT_DAILY="${VAULT_PATH:-${VAULT_PATH}}/Daily"
+VAULT_DAILY="${VAULT_PATH:?VAULT_PATH not set}/Daily"
 
 # Check if Daily directory exists
 if [ ! -d "${VAULT_DAILY}" ]; then

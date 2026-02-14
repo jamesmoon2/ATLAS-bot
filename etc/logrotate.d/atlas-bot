@@ -1,1 +1,8 @@
-${BOT_DIR}/etc/logrotate.d
+# Update path below to match your installation
+/opt/atlas-bot/logs/cron/*.log {
+    weekly
+    rotate 4
+    compress
+    missingok
+    notifempty
+}

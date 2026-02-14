@@ -8,7 +8,9 @@ set -euo pipefail
 export TZ="America/Los_Angeles"
 
 DATE=$(date +%Y-%m-%d)
-VAULT_DAILY="${VAULT_PATH:-${VAULT_PATH}}/Daily"
+VAULT_PATH="${VAULT_PATH:?VAULT_PATH not set}"
+BOT_DIR="${BOT_DIR:?BOT_DIR not set}"
+VAULT_DAILY="${VAULT_PATH}/Daily"
 
 echo "=== ATLAS Daily Summary Request: ${DATE} ==="
 
@@ -35,7 +37,7 @@ Any threads left incomplete or questions pending.
 Be concise. Use bullet points. Skip sections if nothing to report."
 
 # Send via Discord bot (ATLAS will respond and write summary)
-cd ${BOT_DIR}
+cd "${BOT_DIR}"
 python3 send_message.py "${SUMMARY_PROMPT}"
 
 echo "=== Summary request sent to ATLAS at 23:55 PST ==="

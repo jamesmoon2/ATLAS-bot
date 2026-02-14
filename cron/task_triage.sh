@@ -7,6 +7,8 @@ set -euo pipefail
 export TZ="America/Los_Angeles"
 
 CHANNEL_ID="${DISCORD_CHANNEL_ID:?DISCORD_CHANNEL_ID not set}"
+BOT_DIR="${BOT_DIR:?BOT_DIR not set}"
+VAULT_PATH="${VAULT_PATH:?VAULT_PATH not set}"
 SESSION_DIR="${BOT_DIR}/sessions/${CHANNEL_ID}"
 STATE_FILE="${VAULT_PATH}/System/agent-state.json"
 
