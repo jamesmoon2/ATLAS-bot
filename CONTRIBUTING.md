@@ -30,11 +30,12 @@ Thank you for your interest in contributing to ATLAS Bot! This document provides
 
 2. Make your changes and ensure they follow our coding standards
 
-3. Run the linters:
+3. Run the linters and tests:
 
    ```bash
    ruff check .
    ruff format .
+   pytest
    ```
 
 4. Commit your changes with a descriptive message:
@@ -77,6 +78,41 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/):
 - **Markdown/JSON/YAML**: We use [Prettier](https://prettier.io/) for formatting
 - **Type hints**: Use type hints for function parameters and return values
 - **Docstrings**: Use docstrings for modules, classes, and functions
+
+## Running Tests
+
+Run the full test suite:
+
+```bash
+pytest
+```
+
+Run with coverage:
+
+```bash
+pytest --cov=. --cov-report=term-missing
+```
+
+Run a specific test file:
+
+```bash
+pytest tests/test_bot_sessions.py
+```
+
+Run a specific test:
+
+```bash
+pytest tests/test_bot_sessions.py::TestEnsureChannelSession::test_creates_channel_dir
+```
+
+### Writing Tests
+
+- All tests live in the `tests/` directory
+- Test files follow the pattern `test_<module>.py`
+- Tests should run fast with no network access or secrets required — mock all external dependencies
+- Use the shared fixtures in `tests/conftest.py` for common mocks (Discord messages, channels, etc.)
+- Use `monkeypatch` to redirect file paths to `tmp_path` so tests never touch real files
+- Use `pytest.mark.asyncio` for async test functions (auto mode is enabled)
 
 ## Reporting Issues
 
