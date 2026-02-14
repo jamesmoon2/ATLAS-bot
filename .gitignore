@@ -4,3 +4,13 @@ __pycache__/
 *.pyc
 sessions/
 *.log
+
+# Runtime state and artifacts
+cron/state/
+logs/
+.coverage
+
+# MCP server secrets
+mcp-servers/credentials/
+mcp-servers/*/.env
+mcp-servers/*/tokens.json
