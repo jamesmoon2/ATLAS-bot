@@ -240,7 +240,7 @@ async def execute_job(job: dict) -> bool:
     log_entry += f"\nOutput:\n{output}\n"
 
     # Handle notification
-    notify = job.get("notify", {})
+    notify = job.get("notify") or {}
     notify_type = notify.get("type", "silent")
 
     if notify_type == "webhook":
