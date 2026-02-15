@@ -8,7 +8,8 @@
       "WebSearch",
       "WebFetch(domain:publish.obsidian.md)",
       "Bash(tmux capture-pane:*)",
-      "WebFetch(domain:raw.githubusercontent.com)"
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "mcp__garmin__*"
     ],
     "deny": [
       "Bash(rm:*)",

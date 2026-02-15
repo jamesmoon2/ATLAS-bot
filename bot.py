@@ -106,6 +106,7 @@ CHANNEL_PERMISSIONS: dict[str, Any] = {
             "Bash(mv:*)",
             "Bash(mkdir:*)",
             "Bash(done)",
+            "mcp__garmin__*",
         ]
     }
 }
@@ -127,6 +128,12 @@ def ensure_channel_session(channel_id: int) -> str:
     local_settings_path = os.path.join(claude_dir, "settings.local.json")
     with open(local_settings_path, "w") as f:
         json.dump(CHANNEL_PERMISSIONS, f, indent=2)
+
+    # Create skills symlink if it doesn't exist
+    skills_symlink = os.path.join(claude_dir, "skills")
+    skills_target = os.path.expanduser("~/.claude/skills")
+    if not os.path.exists(skills_symlink) and os.path.exists(skills_target):
+        os.symlink(skills_target, skills_symlink)
 
     return channel_dir
 
