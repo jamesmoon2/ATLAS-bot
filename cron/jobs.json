@@ -19,7 +19,7 @@
         "mcp__weather__get_forecast",
         "mcp__weather__get_alerts"
       ],
-      "prompt": "Generate a morning briefing for {current_datetime}.\n\n## Instructions\n\n1. **Weather** - Call `mcp__weather__get_forecast` with latitude 0.0000, longitude 0.0000, days=1. Also call `mcp__weather__get_alerts` with same coordinates.\n\n2. **Calendar** - Call `mcp__google-calendar__list-events` for today (calendarId: primary).\n\n3. **Training State** - Read `${VAULT_PATH}/Areas/Health/Training-State.md` for current program, this week's schedule, and any adjustments.\n\n4. **Recovery Data** - Call `mcp__oura__get_daily_sleep` and `mcp__oura__get_daily_readiness` for YESTERDAY's date (today's data not finalized at 5:30 AM).\n\n5. **Medications** - Check day of week:\n   - Monday: Vitaplex + Neupro due (Mon AM)\n   - Wednesday: Medrol due (Wed AM)\n   - Thursday: Vitaplex + Neupro due (Thu PM)\n   - Saturday: Medrol due (Sat PM)\n   - Other days: None due\n\n## Output Format\n\n```markdown\n# Morning Briefing - [Day], [Month] [Day], [Year]\n\n## Weather\n**Your City:** [Conditions], high [X]°F / low [Y]°F, [Z]% precipitation. [Alerts or 'No active alerts.']\n\n## Schedule\n[Events or 'No scheduled events today']\n\n## Training\n**[Workout] - Week [X] Day [Y]**\n[Key details, exercises, target RPE]\n[If Zone 2: Include talk test reminder]\n[If rest day: 'Rest day — no training scheduled']\n\n## Medications\n[Doses due today or 'None due today' with next scheduled]\n\n## Recovery\n**Yesterday's Oura ([date]):**\n- Sleep: [score] ([key contributors])\n- Readiness: [score] ([key contributors])\n[1-2 sentence interpmedroltion]\n\n## Recommendation\n[Single actionable suggestion based on all inputs]\n```\n\n**Rules:** Terse, no fluff, scannable, actionable. End with clear recommendation.",
+      "prompt": "Run the morning-briefing skill for today.\n\n**Current Time:** {current_datetime}",
       "notify": {
         "type": "webhook",
         "url_env": "DISCORD_WEBHOOK_URL",
@@ -83,11 +83,7 @@
       "enabled": true,
       "model": "opus",
       "timeout_seconds": 120,
-      "allowed_tools": [
-        "Bash",
-        "Read",
-        "Glob"
-      ],
+      "allowed_tools": ["Bash", "Read", "Glob"],
       "prompt": "Scan for stale projects in the vault.\n\n**Current Time:** {current_datetime}\n\n## Instructions\n\n1. **List Projects** - Use Bash to list all project directories:\n   ```\n   ls -1 {vault_path}/Projects/\n   ```\n\n2. **Check Each Project** - For each project directory, find the most recently modified .md file:\n   ```\n   find {vault_path}/Projects/[PROJECT_NAME] -name \"*.md\" -type f -printf \"%T@ %Tc %p\\n\" | sort -rn | head -1\n   ```\n\n3. **Calculate Staleness** - Compare the modification date to today's date and categorize:\n   - **Needs Attention:** 30-59 days since last modification\n   - **Very Stale:** 60-89 days since last modification\n   - **Consider Archiving:** 90+ days since last modification\n   - **Active:** Less than 30 days (don't report these individually)\n\n4. **Skip Archive** - Do not scan {vault_path}/Archive/\n\n## Output Format\n\n**Stale Project Report**\n\n**Needs Attention (30-59 days)**\n- [Project Name] - Last modified: [date] ([X] days ago)\n\n**Very Stale (60-89 days)**\n- [Project Name] - Last modified: [date] ([X] days ago)\n\n**Consider Archiving (90+ days)**\n- [Project Name] - Last modified: [date] ([X] days ago)\n\n---\n**Summary:** [X] stale projects, [Y] active projects\n\nIf no stale projects found, just report: \"All [X] projects are active (modified within 30 days)\"",
       "notify": {
         "type": "webhook",
@@ -103,13 +99,7 @@
       "enabled": true,
       "model": "opus",
       "timeout_seconds": 180,
-      "allowed_tools": [
-        "Read",
-        "Write",
-        "Edit",
-        "Glob",
-        "Skill"
-      ],
+      "allowed_tools": ["Read", "Write", "Edit", "Glob", "Skill"],
       "prompt": "Run the daily-summary skill for today.\n\nAfter writing the daily summary, review today's conversations and update {vault_path}/System/ATLAS-Context.md if any of the following occurred:\n\n1. **Corrections Log:** Any factual errors ATLAS made today → append to table\n2. **Active Threads:** Project status changes, new threads started, old threads completed → update section\n3. **Preferences Learned:** New interaction preferences expressed → append to section\n4. **Stable Facts:** Any new stable facts learned (weight change, new baseline, etc.) → update table\n5. **Health Baselines:** Changes to training, HRV, sleep patterns → update table\n\nOnly modify sections with actual changes. Do not rewrite unchanged sections.\nSkip this step if nothing changed today.",
       "notify": {
         "type": "webhook",
