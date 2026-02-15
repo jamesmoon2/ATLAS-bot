@@ -170,7 +170,7 @@ async def run_claude(job: dict) -> tuple[str, bool]:
             allowed_tools,
             "-p",
             prompt,
-            cwd=str(CRON_DIR),
+            cwd=str(BOT_DIR),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             env={**{k: v for k, v in os.environ.items() if k != "CLAUDECODE"}, "ANTHROPIC_DISABLE_PROMPT_CACHING": "1"},
