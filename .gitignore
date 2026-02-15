@@ -10,6 +10,9 @@ cron/state/
 logs/
 .coverage
 
+# Medication config (contains personal health info)
+meds.json
+
 # MCP server secrets
 mcp-servers/credentials/
 mcp-servers/*/.env

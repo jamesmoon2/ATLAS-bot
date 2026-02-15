@@ -134,55 +134,34 @@
       }
     },
     {
-      "id": "med_reminder_wed_am",
-      "name": "Medication Reminder - Wed AM",
-      "schedule": "0 5 * * 3",
+      "id": "med_reminder",
+      "name": "Medication Reminder",
+      "schedule": "0 5,20 * * *",
       "timezone": "America/Los_Angeles",
       "enabled": true,
       "command": "{bot_dir}/cron/med_reminder.sh",
       "notify": {
         "type": "webhook",
         "url_env": "DISCORD_WEBHOOK_URL",
-        "username": "ATLAS Medication"
+        "username": "ATLAS Medication",
+        "suppress_if_contains": "NO_ALERT"
       }
     },
     {
-      "id": "med_reminder_sat_pm",
-      "name": "Medication Reminder - Sat PM",
-      "schedule": "0 20 * * 6",
+      "id": "med_config_sync",
+      "name": "Medication Config Sync",
+      "schedule": "0 1 * * *",
       "timezone": "America/Los_Angeles",
       "enabled": true,
-      "command": "{bot_dir}/cron/med_reminder.sh",
+      "model": "haiku",
+      "timeout_seconds": 60,
+      "allowed_tools": ["Read", "Write"],
+      "prompt": "Compare the medication vault file against the bot's operational config and update the config if they've drifted.\n\n**Current Time:** {current_datetime}\n\n## Instructions\n\n1. Read `{vault_path}/Areas/Health/Medications.md` — this is the source of truth for medication names, doses, schedules, and protocols.\n2. Read `{bot_dir}/meds.json` — this is the operational config used by the bot for reminders, logging, and briefings.\n3. Compare them. Check for:\n   - New medications in the vault not in the config\n   - Dose changes (e.g., 2mg → 4mg)\n   - Schedule changes (e.g., different days/times)\n   - Discontinued medications (in config but removed from vault)\n4. If they match: output `NO_ALERT`\n5. If they differ: update `{bot_dir}/meds.json` to match the vault. Preserve the JSON schema (id, name, display_name, location, vault_table_marker, entry_format, schedule). Output a summary of what changed.",
       "notify": {
         "type": "webhook",
         "url_env": "DISCORD_WEBHOOK_URL",
-        "username": "ATLAS Medication"
-      }
-    },
-    {
-      "id": "med_reminder_mon_am",
-      "name": "Medication Reminder - Mon AM",
-      "schedule": "0 5 * * 1",
-      "timezone": "America/Los_Angeles",
-      "enabled": true,
-      "command": "{bot_dir}/cron/med_reminder.sh",
-      "notify": {
-        "type": "webhook",
-        "url_env": "DISCORD_WEBHOOK_URL",
-        "username": "ATLAS Medication"
-      }
-    },
-    {
-      "id": "med_reminder_thu_pm",
-      "name": "Medication Reminder - Thu PM",
-      "schedule": "0 20 * * 4",
-      "timezone": "America/Los_Angeles",
-      "enabled": true,
-      "command": "{bot_dir}/cron/med_reminder.sh",
-      "notify": {
-        "type": "webhook",
-        "url_env": "DISCORD_WEBHOOK_URL",
-        "username": "ATLAS Medication"
+        "username": "ATLAS Config Sync",
+        "suppress_if_contains": "NO_ALERT"
       }
     },
     {

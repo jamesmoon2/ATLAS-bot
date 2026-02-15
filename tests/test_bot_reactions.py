@@ -9,7 +9,7 @@ import bot
 
 
 @pytest.fixture(autouse=True)
-def _patch_env(vault_dir, monkeypatch):
+def _patch_env(vault_dir, med_config, monkeypatch):
     monkeypatch.setattr(bot, "VAULT_PATH", str(vault_dir))
 
 
@@ -21,12 +21,13 @@ def _mock_client(monkeypatch):
     return mock_client
 
 
-def _make_reaction(emoji, content, is_bot_author=True, user_is_bot=False):
+def _make_reaction(emoji, content, is_bot_author=True, user_is_bot=False, is_webhook=False):
     reaction = MagicMock()
     reaction.emoji = emoji
     reaction.message = MagicMock()
     reaction.message.author = MagicMock()
     reaction.message.content = content
+    reaction.message.webhook_id = 123456 if is_webhook else None
     reaction.message.created_at = MagicMock()
     reaction.message.created_at.isoformat.return_value = "2025-06-11T12:00:00+00:00"
     reaction.message.add_reaction = AsyncMock()
@@ -69,6 +70,42 @@ class TestReactionFiltering:
     async def test_non_medication_message_ignored(self):
         reaction, user = _make_reaction("✅", "Just a regular message")
         bot.client.user = reaction.message.author
+        await bot.on_reaction_add(reaction, user)
+        reaction.message.add_reaction.assert_not_called()
+
+
+class TestWebhookReaction:
+    """Reactions on webhook-sent reminders (the real-world flow)."""
+
+    @pytest.mark.asyncio
+    @patch("bot.log_medication_dose", return_value=True)
+    async def test_webhook_reminder_processed(self, mock_log, vault_dir):
+        """Webhook messages (webhook_id set) should be processed even though
+        the message author is not client.user."""
+        sys_dir = vault_dir / "System"
+        sys_dir.mkdir()
+        (sys_dir / "agent-state.json").write_text("{}")
+
+        reaction, user = _make_reaction(
+            "✅",
+            "**Medication Reminder**\n\nMedrol 5mg due this morning (Wed AM)",
+            is_bot_author=False,
+            is_webhook=True,
+        )
+        # Author is NOT the bot
+        bot.client.user = MagicMock()
+        await bot.on_reaction_add(reaction, user)
+        mock_log.assert_called_once_with("Medrol 5mg", "2025-06-11T12:00:00+00:00")
+
+    @pytest.mark.asyncio
+    async def test_webhook_non_medication_ignored(self):
+        reaction, user = _make_reaction(
+            "✅",
+            "Just a webhook message",
+            is_bot_author=False,
+            is_webhook=True,
+        )
+        bot.client.user = MagicMock()
         await bot.on_reaction_add(reaction, user)
         reaction.message.add_reaction.assert_not_called()
 

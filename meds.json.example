@@ -1,0 +1,16 @@
+{
+  "medications": [
+    {
+      "id": "example_med",
+      "name": "Example Medication 10mg",
+      "display_name": "Example Medication",
+      "location": "Fridge",
+      "vault_table_marker": "## Dosing Log",
+      "entry_format": "| {date} | 10mg | — | {day_label} | {source} |",
+      "schedule": [
+        { "day": 1, "hour": 8, "label": "Mon AM" },
+        { "day": 4, "hour": 20, "label": "Thu PM" }
+      ]
+    }
+  ]
+}

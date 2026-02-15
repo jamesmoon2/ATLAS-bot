@@ -9,7 +9,7 @@ class TestMedrolDosing:
     """Medrol medication entries inserted into ## Dosing Log table."""
 
     @pytest.fixture(autouse=True)
-    def _patch_vault(self, vault_dir, medications_file, monkeypatch):
+    def _patch_vault(self, vault_dir, medications_file, med_config, monkeypatch):
         monkeypatch.setattr(bot, "VAULT_PATH", str(vault_dir))
         self.med_file = medications_file
 
@@ -51,7 +51,7 @@ class TestVitaplexDosing:
     """Vitaplex entries inserted into ### Dosing Log table."""
 
     @pytest.fixture(autouse=True)
-    def _patch_vault(self, vault_dir, medications_file, monkeypatch):
+    def _patch_vault(self, vault_dir, medications_file, med_config, monkeypatch):
         monkeypatch.setattr(bot, "VAULT_PATH", str(vault_dir))
         self.med_file = medications_file
 
@@ -84,13 +84,13 @@ class TestEdgeCases:
     """Missing file, missing marker, timezone edge cases."""
 
     @pytest.mark.asyncio
-    async def test_missing_file_returns_false(self, vault_dir, monkeypatch):
+    async def test_missing_file_returns_false(self, vault_dir, med_config, monkeypatch):
         monkeypatch.setattr(bot, "VAULT_PATH", str(vault_dir))
         result = await bot.log_medication_dose("Medrol 5mg", "2025-06-11T12:00:00Z")
         assert result is False
 
     @pytest.mark.asyncio
-    async def test_missing_table_marker_returns_false(self, vault_dir, monkeypatch):
+    async def test_missing_table_marker_returns_false(self, vault_dir, med_config, monkeypatch):
         monkeypatch.setattr(bot, "VAULT_PATH", str(vault_dir))
         health_dir = vault_dir / "Areas" / "Health"
         health_dir.mkdir(parents=True)
@@ -99,13 +99,15 @@ class TestEdgeCases:
         assert result is False
 
     @pytest.mark.asyncio
-    async def test_utc_z_suffix_parsed(self, vault_dir, medications_file, monkeypatch):
+    async def test_utc_z_suffix_parsed(self, vault_dir, medications_file, med_config, monkeypatch):
         monkeypatch.setattr(bot, "VAULT_PATH", str(vault_dir))
         result = await bot.log_medication_dose("Medrol 5mg", "2025-06-11T12:00:00Z")
         assert result is True
 
     @pytest.mark.asyncio
-    async def test_timezone_offset_parsed(self, vault_dir, medications_file, monkeypatch):
+    async def test_timezone_offset_parsed(
+        self, vault_dir, medications_file, med_config, monkeypatch
+    ):
         monkeypatch.setattr(bot, "VAULT_PATH", str(vault_dir))
         result = await bot.log_medication_dose("Medrol 5mg", "2025-06-11T05:00:00-07:00")
         assert result is True

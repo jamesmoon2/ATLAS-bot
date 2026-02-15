@@ -9,7 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Cron dispatcher system with 14 scheduled jobs (`cron/dispatcher.py`, `cron/jobs.json`)
+- `meds.json` config file for medication names, doses, schedules, and vault markers (gitignored)
+- `meds.json.example` with sanitized placeholder data
+- `med_config.py` shared loader with `load_meds()` and `find_med_by_content()`
+- `med_config_sync` nightly cron job — Claude compares vault `Medications.md` against `meds.json` and auto-updates on drift
+- Cron dispatcher system with 12 scheduled jobs (`cron/dispatcher.py`, `cron/jobs.json`)
 - Model switching per channel (`!model sonnet|opus`, defaults to opus)
 - Attachment support for images and PDFs via Discord uploads
 - MCP integrations: Oura Ring, Google Calendar, Gmail, Weather, Garmin Connect
@@ -37,6 +41,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Medication tracking refactored from hardcoded names/schedules to config-driven (`meds.json`)
+- 4 separate medication cron jobs consolidated into 1 config-driven job (`med_reminder`)
+- `med_reminder.sh` reads `meds.json` via jq instead of hardcoded if/elif blocks; removed duplicate curl webhook (dispatcher handles notification)
+- `morning-briefing.md` skill reads medication schedules from `meds.json` instead of hardcoded day-of-week logic
 - Default model switched from sonnet to opus
 - Session reset now clears Claude's internal storage (`~/.claude/projects/`)
 - State saved before job execution to prevent duplicate cron runs

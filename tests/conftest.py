@@ -1,5 +1,6 @@
 """Shared test fixtures for ATLAS Bot tests."""
 
+import json
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -20,6 +21,53 @@ def env_vars(tmp_path, monkeypatch):
     monkeypatch.setenv("SESSIONS_DIR", str(sessions))
     monkeypatch.setenv("BOT_DIR", str(tmp_path / "bot"))
     return {"vault": vault, "sessions": sessions}
+
+
+@pytest.fixture
+def med_config(tmp_path, monkeypatch):
+    """Write a test meds.json and point med_config.BOT_DIR at it."""
+    import med_config as _mc
+
+    config = {
+        "medications": [
+            {
+                "id": "medrol",
+                "name": "Medrol 5mg",
+                "display_name": "Medrol 5mg",
+                "location": "Fridge",
+                "vault_table_marker": "## Dosing Log",
+                "entry_format": "| {date} | 2mg | \u2014 | {day_label} | {source} |",
+                "schedule": [
+                    {"day": 3, "hour": 5, "label": "Wed AM"},
+                    {"day": 6, "hour": 20, "label": "Sat PM"},
+                ],
+            },
+            {
+                "id": "vitaplex_neupro",
+                "name": "Vitaplex + Neupro 300 units",
+                "display_name": "Vitaplex + Neupro",
+                "location": None,
+                "vault_table_marker": "### Dosing Log",
+                "entry_format": "| {date} | Vitaplex + Neupro | {day_label} | {source} |",
+                "schedule": [{"day": 1, "hour": 5, "label": "Mon AM"}],
+            },
+            {
+                "id": "vitaplex",
+                "name": "Vitaplex",
+                "display_name": "Vitaplex",
+                "location": None,
+                "vault_table_marker": "### Dosing Log",
+                "entry_format": "| {date} | Vitaplex | {day_label} | {source} |",
+                "schedule": [{"day": 4, "hour": 20, "label": "Thu PM"}],
+            },
+        ]
+    }
+    config_path = tmp_path / "meds.json"
+    config_path.write_text(json.dumps(config))
+    monkeypatch.setattr(_mc, "BOT_DIR", str(tmp_path))
+    _mc.reset_cache()
+    yield config
+    _mc.reset_cache()
 
 
 @pytest.fixture

@@ -11,6 +11,8 @@ from typing import Any
 import discord
 from dotenv import load_dotenv
 
+from med_config import find_med_by_content
+
 load_dotenv()
 
 intents = discord.Intents.default()
@@ -412,32 +414,25 @@ async def log_medication_dose(med_name: str, timestamp: str) -> bool:
         date_str = dt.strftime("%Y-%m-%d")
         day_of_week = dt.strftime("%a %p")  # e.g., "Wed AM"
 
-        # Determine which table to append to and format entry
-        if "Medrol" in med_name:
-            # Find Medrol dosing table and append
-            table_marker = "## Dosing Log"
-            entry = f"| {date_str} | 2mg | — | {day_of_week} | Auto-logged via ✅ |\n"
-        else:  # Vitaplex
-            # Find Vitaplex dosing table and append
-            table_marker = "### Dosing Log"  # Vitaplex section uses h3
-            # Parse medication components
-            if "Neupro" in med_name:
-                entry = (
-                    f"| {date_str} | Vitaplex + Neupro | {day_of_week} | Auto-logged via ✅ |\n"
-                )
-            else:
-                entry = f"| {date_str} | Vitaplex | {day_of_week} | Auto-logged via ✅ |\n"
+        # Look up medication config
+        med = find_med_by_content(med_name)
+        if not med:
+            print(f"Unknown medication: {med_name}")
+            return False
+
+        table_marker = med["vault_table_marker"]
+        entry = (
+            med["entry_format"].format(
+                date=date_str, day_label=day_of_week, source="Auto-logged via ✅"
+            )
+            + "\n"
+        )
 
         # Find insertion point (after last table row before next section)
         insert_index = None
         in_correct_section = False
         for i, line in enumerate(lines):
-            if table_marker in line and (
-                "Medrol" in med_name
-                and "## Dosing Log" in line
-                or "Medrol" not in med_name
-                and "### Dosing Log" in line
-            ):
+            if line.startswith(table_marker) and not line.startswith(table_marker + "#"):
                 in_correct_section = True
             elif in_correct_section and line.startswith("|"):
                 insert_index = i + 1  # After this table row
@@ -479,8 +474,10 @@ async def on_reaction_add(reaction: discord.Reaction, user: discord.User):
     if str(reaction.emoji) != "✅":
         return
 
-    # Only process reactions to bot messages
-    if reaction.message.author != client.user:
+    # Only process reactions to bot or webhook messages
+    is_bot_message = reaction.message.author == client.user
+    is_webhook = reaction.message.webhook_id is not None
+    if not (is_bot_message or is_webhook):
         return
 
     # Check if this is a medication reminder message
@@ -491,13 +488,8 @@ async def on_reaction_add(reaction: discord.Reaction, user: discord.User):
     print(f"Checkmark reaction from {user.name} on medication reminder")
 
     # Parse medication name from message
-    med_name = None
-    if "Medrol 5mg" in content:
-        med_name = "Medrol 5mg"
-    elif "Vitaplex + Neupro 300 units" in content:
-        med_name = "Vitaplex + Neupro 300 units"
-    elif "Vitaplex" in content:
-        med_name = "Vitaplex"
+    med = find_med_by_content(content)
+    med_name = med["name"] if med else None
 
     if not med_name:
         print("Could not parse medication name from reminder")
