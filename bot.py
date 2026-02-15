@@ -3,8 +3,8 @@
 import asyncio
 import json
 import os
-import signal
 import shutil
+import signal
 import uuid
 from typing import Any
 
@@ -39,6 +39,7 @@ def get_channel_lock(channel_id: int) -> asyncio.Lock:
         channel_locks[channel_id] = asyncio.Lock()
     return channel_locks[channel_id]
 
+
 # Claude settings for each channel session (built dynamically from env vars)
 CHANNEL_SETTINGS: dict[str, Any] = {
     "hooks": {
@@ -48,7 +49,10 @@ CHANNEL_SETTINGS: dict[str, Any] = {
                     {"type": "command", "command": f"cat {SYSTEM_PROMPT_PATH}"},
                     {"type": "command", "command": f"cat {CONTEXT_PATH}"},
                     {"type": "command", "command": "echo '\n---\n# Session Context'"},
-                    {"type": "command", "command": "TZ='America/Los_Angeles' date '+**Current Time:** %A, %B %d, %Y %H:%M %Z'"},
+                    {
+                        "type": "command",
+                        "command": "TZ='America/Los_Angeles' date '+**Current Time:** %A, %B %d, %Y %H:%M %Z'",
+                    },
                     {"type": "command", "command": f"{BOT_DIR}/hooks/tasks_summary.sh"},
                     {"type": "command", "command": f"{BOT_DIR}/hooks/recent_changes.sh"},
                     {"type": "command", "command": f"{BOT_DIR}/hooks/recent_summaries.sh"},
@@ -58,25 +62,19 @@ CHANNEL_SETTINGS: dict[str, Any] = {
         "PreToolUse": [
             {
                 "matcher": "mcp__google-calendar__create-event",
-                "hooks": [
-                    {"type": "command", "command": f"{BOT_DIR}/hooks/calendar_context.sh"}
-                ]
+                "hooks": [{"type": "command", "command": f"{BOT_DIR}/hooks/calendar_context.sh"}],
             },
             {
                 "matcher": "mcp__google-calendar__update-event",
-                "hooks": [
-                    {"type": "command", "command": f"{BOT_DIR}/hooks/calendar_context.sh"}
-                ]
-            }
+                "hooks": [{"type": "command", "command": f"{BOT_DIR}/hooks/calendar_context.sh"}],
+            },
         ],
         "PostToolUse": [
             {
                 "matcher": "Write(**Workout-Logs/20*.md)",
-                "hooks": [
-                    {"type": "command", "command": f"{BOT_DIR}/hooks/workout_oura_data.sh"}
-                ]
+                "hooks": [{"type": "command", "command": f"{BOT_DIR}/hooks/workout_oura_data.sh"}],
             }
-        ]
+        ],
     }
 }
 
@@ -351,9 +349,7 @@ async def on_message(message):
     # Download attachments (images, PDFs, etc.)
     downloaded_files = []
     if message.attachments:
-        downloaded_files = await download_attachments(
-            message.channel.id, message.attachments
-        )
+        downloaded_files = await download_attachments(message.channel.id, message.attachments)
         if downloaded_files:
             print(f"  Downloaded {len(downloaded_files)} attachment(s)")
 
@@ -408,11 +404,11 @@ async def log_medication_dose(med_name: str, timestamp: str) -> bool:
             print(f"Warning: {med_file} does not exist")
             return False
 
-        with open(med_file, 'r') as f:
+        with open(med_file) as f:
             lines = f.readlines()
 
         # Format timestamp
-        dt = datetime.fromisoformat(timestamp.replace('Z', '+00:00'))
+        dt = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
         date_str = dt.strftime("%Y-%m-%d")
         day_of_week = dt.strftime("%a %p")  # e.g., "Wed AM"
 
@@ -426,7 +422,9 @@ async def log_medication_dose(med_name: str, timestamp: str) -> bool:
             table_marker = "### Dosing Log"  # Vitaplex section uses h3
             # Parse medication components
             if "Neupro" in med_name:
-                entry = f"| {date_str} | Vitaplex + Neupro | {day_of_week} | Auto-logged via ✅ |\n"
+                entry = (
+                    f"| {date_str} | Vitaplex + Neupro | {day_of_week} | Auto-logged via ✅ |\n"
+                )
             else:
                 entry = f"| {date_str} | Vitaplex | {day_of_week} | Auto-logged via ✅ |\n"
 
@@ -434,7 +432,12 @@ async def log_medication_dose(med_name: str, timestamp: str) -> bool:
         insert_index = None
         in_correct_section = False
         for i, line in enumerate(lines):
-            if table_marker in line and ("Medrol" in med_name and "## Dosing Log" in line or "Medrol" not in med_name and "### Dosing Log" in line):
+            if table_marker in line and (
+                "Medrol" in med_name
+                and "## Dosing Log" in line
+                or "Medrol" not in med_name
+                and "### Dosing Log" in line
+            ):
                 in_correct_section = True
             elif in_correct_section and line.startswith("|"):
                 insert_index = i + 1  # After this table row
@@ -450,7 +453,7 @@ async def log_medication_dose(med_name: str, timestamp: str) -> bool:
         lines.insert(insert_index, entry)
 
         # Write back
-        with open(med_file, 'w') as f:
+        with open(med_file, "w") as f:
             f.writelines(lines)
 
         print(f"Logged dose: {med_name} at {date_str} ({day_of_week})")
@@ -459,6 +462,7 @@ async def log_medication_dose(med_name: str, timestamp: str) -> bool:
     except Exception as e:
         print(f"Error logging medication: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
@@ -509,7 +513,7 @@ async def on_reaction_add(reaction: discord.Reaction, user: discord.User):
         # Update agent state to mark as confirmed
         state_file = f"{VAULT_PATH}/System/agent-state.json"
         try:
-            with open(state_file, 'r') as f:
+            with open(state_file) as f:
                 state = json.load(f)
 
             if med_name not in state.get("med_reminders", {}):
@@ -518,7 +522,7 @@ async def on_reaction_add(reaction: discord.Reaction, user: discord.User):
             state["med_reminders"][med_name]["confirmed"] = True
             state["med_reminders"][med_name]["confirmed_at"] = timestamp
 
-            with open(state_file, 'w') as f:
+            with open(state_file, "w") as f:
                 json.dump(state, f, indent=2)
 
             print(f"Updated agent state for {med_name}")

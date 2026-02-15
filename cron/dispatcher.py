@@ -19,9 +19,9 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from dotenv import load_dotenv
 import aiohttp
 from croniter import croniter
+from dotenv import load_dotenv
 
 # Paths
 BOT_DIR = Path(__file__).parent.parent
@@ -108,11 +108,7 @@ def is_job_due(job: dict, state: dict, now: datetime) -> bool:
 async def run_shell_command(job: dict) -> tuple[str, bool]:
     """Execute shell command directly. Returns (output, success)."""
     vault_path = os.getenv("VAULT_PATH", "")
-    command = (
-        job["command"]
-        .replace("{vault_path}", vault_path)
-        .replace("{bot_dir}", str(BOT_DIR))
-    )
+    command = job["command"].replace("{vault_path}", vault_path).replace("{bot_dir}", str(BOT_DIR))
     timeout = job.get("timeout_seconds", 180)
 
     try:
@@ -120,7 +116,7 @@ async def run_shell_command(job: dict) -> tuple[str, bool]:
             command,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
-            env={**os.environ}
+            env={**os.environ},
         )
 
         stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout)
@@ -173,7 +169,10 @@ async def run_claude(job: dict) -> tuple[str, bool]:
             cwd=str(BOT_DIR),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
-            env={**{k: v for k, v in os.environ.items() if k != "CLAUDECODE"}, "ANTHROPIC_DISABLE_PROMPT_CACHING": "1"},
+            env={
+                **{k: v for k, v in os.environ.items() if k != "CLAUDECODE"},
+                "ANTHROPIC_DISABLE_PROMPT_CACHING": "1",
+            },
         )
 
         stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout)
@@ -210,9 +209,7 @@ async def send_webhook(content: str, notify_config: dict) -> bool:
     try:
         async with aiohttp.ClientSession() as session:
             for chunk in chunks:
-                async with session.post(
-                    url, json={"content": chunk, "username": username}
-                ) as resp:
+                async with session.post(url, json={"content": chunk, "username": username}) as resp:
                     if resp.status not in (200, 204):
                         log(f"Webhook failed with status {resp.status}")
                         return False
@@ -323,7 +320,9 @@ async def main(run_now: str | None = None):
 
             # Check if disabled due to consecutive failures
             if job_state.get("failures", 0) >= 3:
-                log(f"Skipping {job_id}: disabled after {job_state['failures']} consecutive failures (use --run-now to reset)")
+                log(
+                    f"Skipping {job_id}: disabled after {job_state['failures']} consecutive failures (use --run-now to reset)"
+                )
                 continue
 
             if not is_job_due(job, state, now):
@@ -350,7 +349,9 @@ async def main(run_now: str | None = None):
             save_state(state)
 
             if job_state["failures"] >= 3:
-                log(f"Job {job_id} failed {job_state['failures']} times - disabling until manual --run-now")
+                log(
+                    f"Job {job_id} failed {job_state['failures']} times - disabling until manual --run-now"
+                )
                 # Send a disable notification
                 notify = job.get("notify", {})
                 if notify.get("type") == "webhook":
@@ -358,7 +359,7 @@ async def main(run_now: str | None = None):
                     await send_webhook(
                         f"**{job_name} - DISABLED** after {job_state['failures']} consecutive failures. "
                         f"Use `python dispatcher.py --run-now {job_id}` to re-enable.",
-                        notify
+                        notify,
                     )
             else:
                 log(f"Job {job_id} failed ({job_state['failures']}/3) - will retry next run")
