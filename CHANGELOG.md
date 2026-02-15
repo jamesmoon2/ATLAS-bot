@@ -9,11 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Cron dispatcher system with 12 scheduled jobs (`cron/dispatcher.py`, `cron/jobs.json`)
+- Cron dispatcher system with 14 scheduled jobs (`cron/dispatcher.py`, `cron/jobs.json`)
 - Model switching per channel (`!model sonnet|opus`, defaults to opus)
 - Attachment support for images and PDFs via Discord uploads
-- MCP integrations: Oura Ring, Google Calendar, Gmail, Weather
-- Claude skills system (6 skills: morning-briefing, daily-summary, log-workout, log-cardio, log-medication, weekly-training-planner)
+- MCP integrations: Oura Ring, Google Calendar, Gmail, Weather, Garmin Connect
+- Claude skills system (8 skills: morning-briefing, daily-summary, log-workout, log-cardio, log-medication, weekly-training-planner, health-pattern-monitor, weekly-review)
 - Medication tracking with reaction-based dose logging (checkmark reactions on reminders)
 - `send_message.py` for sending messages to Discord channels programmatically
 - Nightly session archive and reset (`cron/session_archive.sh`)
@@ -24,9 +24,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Stale project detector for vault maintenance
 - MCP health check job for OAuth token validation
 - Oura context updater for daily workout logs
+- Health pattern monitor — daily Oura trend analysis, alerts only when noteworthy
+- Weekly review — Sunday synthesis of daily summaries, health metrics, and project activity
+- Weekly training planner — recovery-aware training plan generation with calendar integration
+- Garmin MCP tool permissions for cron and Discord sessions
+- Automatic skills symlink creation in Discord channel sessions for skill discovery
+- `suppress_if_contains` feature in cron dispatcher for silent-unless-noteworthy jobs
 - `run_cron.sh` entry point called every minute via system crontab
 - systemd service and logrotate configs (`etc/`)
 - `DISCORD_CHANNEL_ID` and `CONTEXT_PATH` environment variables
+- Pre-commit hooks with ruff (lint + format), prettier, and standard checks
 
 ### Changed
 
@@ -36,6 +43,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Calendar context hook expanded to full 7-day ISO date table
 - Hooks now span three event types: SessionStart, PreToolUse, PostToolUse
 - `DISCORD_WEBHOOK_URL` used for cron job notifications (was daily digest)
+- Recent daily summaries now injected into SessionStart context via `recent_summaries.sh`
+
+### Fixed
+
+- Cron-spawned Claude sessions now run from project root (`BOT_DIR`) so skills are discoverable
+- Null `notify` field in cron jobs no longer causes `AttributeError`
+- `CLAUDECODE` env var stripped to prevent nested session errors
+- Hardcoded paths replaced with environment variables for portability
 
 ### Removed
 

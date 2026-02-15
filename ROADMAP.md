@@ -16,25 +16,24 @@ The user wants to evolve ATLAS from a reactive chat assistant into a proactive, 
 
 Create dedicated channels with per-channel behavior:
 
-| Channel | Purpose | Webhook Routing |
-|---------|---------|-----------------|
-| `#atlas` | General conversation (existing) | Default |
-| `#health` | Workouts, meds, Oura, training | Morning briefing, med reminders, health alerts |
-| `#projects` | Project work, tasks, decisions | Stale project alerts, task nudges |
-| `#briefings` | Read-only briefings and reports | Daily summary, weekly/monthly reviews |
+| Channel      | Purpose                         | Webhook Routing                                |
+| ------------ | ------------------------------- | ---------------------------------------------- |
+| `#atlas`     | General conversation (existing) | Default                                        |
+| `#health`    | Workouts, meds, Oura, training  | Morning briefing, med reminders, health alerts |
+| `#projects`  | Project work, tasks, decisions  | Stale project alerts, task nudges              |
+| `#briefings` | Read-only briefings and reports | Daily summary, weekly/monthly reviews          |
 
 **Implementation**:
+
 - **Modify `bot.py`**: Replace hardcoded `CHANNEL_SETTINGS` with a `CHANNEL_CONFIGS` dict keyed by channel name. Each config defines: hooks, permissions, model, and a role description injected into the system prompt. Change `on_message` activation check from single channel name to set of configured channels.
 - **Create `channel_configs.py`**: Extract per-channel configuration (hooks, permissions, role descriptions) into its own module.
 - **Create `hooks/health_context.sh`**: Health-specific SessionStart hook — injects Training-State.md summary, recent workout logs, Medications.md, current Oura scores.
 - **Modify `cron/jobs.json`**: Route each job's webhook to the appropriate channel via `notify.url_env` (already supported by dispatcher).
 - **Add to `.env`**: `DISCORD_WEBHOOK_HEALTH`, `DISCORD_WEBHOOK_BRIEFINGS`, `DISCORD_WEBHOOK_PROJECTS`.
 
-### 1.2 Wire Recent Summaries into SessionStart
+### 1.2 Wire Recent Summaries into SessionStart ✅
 
-`hooks/recent_summaries.sh` exists but is not referenced in `CHANNEL_SETTINGS`. Add it to SessionStart hooks so ATLAS gets the last 3 daily summaries as context every session.
-
-- **Modify `bot.py`**: Add `recent_summaries.sh` to SessionStart hooks array.
+`recent_summaries.sh` is now wired into the SessionStart hooks array in `bot.py`.
 
 ---
 
@@ -42,23 +41,13 @@ Create dedicated channels with per-channel behavior:
 
 **Goal**: Make ATLAS surface insights, alerts, and nudges without being asked. Build the "silent unless noteworthy" pattern into the dispatcher.
 
-### 2.1 Dispatcher: `suppress_if_contains` Feature
+### 2.1 Dispatcher: `suppress_if_contains` Feature ✅
 
-Add a first-class feature to `cron/dispatcher.py`: if a job's `notify` config includes `suppress_if_contains: "NO_ALERT"`, skip the webhook send when the output contains that string. This makes "run analysis, only notify if something is worth flagging" reusable across all proactive jobs.
+Implemented in `cron/dispatcher.py`. Jobs with `suppress_if_contains` in their `notify` config will skip the webhook when the output contains the specified string. Used by health_pattern_monitor (`NO_ALERT`).
 
-- **Modify `cron/dispatcher.py`**: In `send_webhook()`, check for suppression string before sending.
+### 2.2 Health Pattern Monitor ✅
 
-### 2.2 Health Pattern Monitor
-
-Daily cron job (10:30 AM, after Oura sync) that checks 7-14 day health trends. Alerts only when noteworthy:
-- HRV declining 3+ days
-- Sleep score < 70 for 3+ days
-- Readiness < 65 for 2+ days
-- Sleep timing inconsistency > 1hr from baseline
-
-**New files**:
-- `cron/jobs.json`: Add `health_pattern_monitor` job (sonnet model, routes to `#health`)
-- `.claude/skills/health-pattern-monitor.md`: Skill with alert thresholds and output format
+Implemented as `health_pattern_monitor` cron job (10:30 AM daily, sonnet) with the `health-pattern-monitor` skill. Analyzes 10-day Oura trends and alerts only when noteworthy patterns are detected. Uses `suppress_if_contains: "NO_ALERT"` to stay silent on normal days.
 
 ### 2.3 Decision Follow-Up Tracker
 
@@ -84,30 +73,19 @@ Upgrade existing `stale_project_detector` to also scan for uncompleted tasks old
 
 **Goal**: Add Garmin, web research, and financial tracking.
 
-### 3.1 Garmin Connect MCP Server (Use Existing)
+### 3.1 Garmin Connect MCP Server (Use Existing) ✅
 
-Use the community [Taxuspt/garmin_mcp](https://github.com/Taxuspt/garmin_mcp) server — 95+ tools, 100% test pass rate, Python-based, installable via `uvx`. No need to build custom.
+Integrated via the community [Taxuspt/garmin_mcp](https://github.com/Taxuspt/garmin_mcp) server. Garmin MCP tools (`mcp__garmin__*`) are allowed in both project-level settings (`.claude/settings.local.json`) and Discord channel session permissions (`bot.py`).
 
-**Setup**:
-1. One-time auth: `uvx --python 3.12 --from git+https://github.com/Taxuspt/garmin_mcp garmin-mcp-auth` (handles MFA)
-2. Add to Claude Code MCP config (`.claude/settings.local.json` or project-level):
-   ```json
-   "garmin": {
-     "command": "uvx",
-     "args": ["--python", "3.12", "--from", "git+https://github.com/Taxuspt/garmin_mcp", "garmin-mcp"]
-   }
-   ```
-3. Token stored at `~/.garminconnect`, refreshes automatically. Re-auth every ~6 months.
+**Remaining enhancements**:
 
-**Key tools available**: `get_activities`, `get_body_composition`, `get_training_status`, `get_heart_rate`, `get_steps`, `get_sleep`, `get_stress`, plus 85+ more covering devices, gear, challenges, workouts.
-
-**After integration works**:
 - Update `.claude/skills/log-workout.md` to auto-fetch latest Garmin activity instead of requiring manual data entry
 - Create `hooks/garmin_workout_data.sh` (PostToolUse hook after workout log writes)
 
 ### 3.2 Web Research Tools
 
 MCP server at `mcp-servers/web-research/` for:
+
 - `search_web(query)` — Web search via SerpAPI or Brave Search
 - `fetch_article(url)` — Extract article content
 - `clip_to_vault(url, title, tags)` — Save structured article to `vault/Resources/Articles/`
@@ -117,6 +95,7 @@ MCP server at `mcp-servers/web-research/` for:
 ### 3.3 Financial Tracking (Vault-Based Start)
 
 Start manual, automate later:
+
 - Create vault structure: `Areas/Finance/Budget.md`, `Transactions/YYYY-MM.md`
 - **New skill**: `.claude/skills/log-expense.md` — Parse "spent $45 at Costco groceries" into structured entries
 - **New cron job**: `monthly_finance_review` — End-of-month spending vs budget analysis
@@ -127,15 +106,9 @@ Start manual, automate later:
 
 **Goal**: Long-arc pattern detection, mobile push, latency optimization.
 
-### 4.1 Weekly Review
+### 4.1 Weekly Review ✅
 
-Sunday 8 PM cron job (opus) that reads all daily summaries, workout logs, task changes, Oura trends from the past 7 days. Produces structured weekly review.
-
-**Output**: `vault/Daily/YYYY-WXX-weekly-review.md`
-**Sections**: Week summary, health & training trends, project progress, task scorecard, patterns detected, next week focus.
-
-- **Create**: `.claude/skills/weekly-review.md`
-- **Modify**: `cron/jobs.json` (add `weekly_review`)
+Implemented as `weekly_review` cron job (Sunday 8 PM, opus) with the `weekly-review` skill. Synthesizes daily summaries, health metrics, workouts, and project activity into a structured weekly review.
 
 ### 4.2 Monthly Synthesis
 
@@ -159,6 +132,7 @@ Discord mobile already delivers notifications. The problem is noise — morning 
 ### 4.4 Smart Model Routing
 
 Auto-detect query complexity to reduce latency for simple interactions:
+
 - Short commands, quick lookups, logging → Sonnet (faster)
 - Complex analysis, planning, multi-step tasks → Opus
 
@@ -175,28 +149,29 @@ Weekly cron job that scans the vault and maintains `vault/System/vault-index.md`
 
 ## Implementation Order (Recommended)
 
-| Priority | Feature | Effort | Impact |
-|----------|---------|--------|--------|
-| 1 | Wire recent_summaries into SessionStart (1.2) | 15 min | High — immediate context improvement |
-| 2 | Dispatcher suppress_if_contains (2.1) | 30 min | Enables all proactive jobs |
-| 3 | Health pattern monitor (2.2) | 2-3 hrs | High — #1 proactivity request |
-| 4 | Garmin MCP server (3.1) | 1-2 hrs | High — just install + configure existing server |
-| 5 | Multi-channel setup (1.1) | 4-6 hrs | Medium — organizes everything |
-| 6 | Weekly review (4.1) | 2-3 hrs | High — pattern detection foundation |
-| 7 | Decision follow-up (2.3) | 1-2 hrs | Medium — accountability |
-| 8 | Opportunity surfacer (2.4) | 1-2 hrs | Medium — calendar intelligence |
-| 9 | Mobile push priorities (4.3) | 1 hr | Medium — notification UX |
-| 10 | Smart model routing (4.4) | 1-2 hrs | Medium — latency reduction |
-| 11 | Web research MCP (3.2) | 1-2 days | Medium — reference library |
-| 12 | Financial tracking (3.3) | 3-4 hrs | Lower — start with vault-based |
-| 13 | Monthly synthesis (4.2) | 2-3 hrs | Medium — needs weekly reviews first |
-| 14 | Vault index (4.5) | 2-3 hrs | Medium — retrieval improvement |
+| Priority | Feature                                           | Effort   | Impact                              |
+| -------- | ------------------------------------------------- | -------- | ----------------------------------- |
+| ~~1~~    | ~~Wire recent_summaries into SessionStart (1.2)~~ | ✅ Done  |                                     |
+| ~~2~~    | ~~Dispatcher suppress_if_contains (2.1)~~         | ✅ Done  |                                     |
+| ~~3~~    | ~~Health pattern monitor (2.2)~~                  | ✅ Done  |                                     |
+| ~~4~~    | ~~Garmin MCP server (3.1)~~                       | ✅ Done  |                                     |
+| 5        | Multi-channel setup (1.1)                         | 4-6 hrs  | Medium — organizes everything       |
+| ~~6~~    | ~~Weekly review (4.1)~~                           | ✅ Done  |                                     |
+| 7        | Decision follow-up (2.3)                          | 1-2 hrs  | Medium — accountability             |
+| 8        | Opportunity surfacer (2.4)                        | 1-2 hrs  | Medium — calendar intelligence      |
+| 9        | Mobile push priorities (4.3)                      | 1 hr     | Medium — notification UX            |
+| 10       | Smart model routing (4.4)                         | 1-2 hrs  | Medium — latency reduction          |
+| 11       | Web research MCP (3.2)                            | 1-2 days | Medium — reference library          |
+| 12       | Financial tracking (3.3)                          | 3-4 hrs  | Lower — start with vault-based      |
+| 13       | Monthly synthesis (4.2)                           | 2-3 hrs  | Medium — needs weekly reviews first |
+| 14       | Vault index (4.5)                                 | 2-3 hrs  | Medium — retrieval improvement      |
 
 ---
 
 ## Verification
 
 After each feature:
+
 1. **Cron jobs**: Run with `python cron/dispatcher.py --run-now JOB_ID` and verify output
 2. **Multi-channel**: Send test messages in each channel, verify correct hooks fire
 3. **MCP servers**: Test tools individually via Claude Code CLI before integrating

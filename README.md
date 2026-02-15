@@ -113,20 +113,20 @@ stateDiagram-v2
 
 ## Features
 
-| Feature | Description |
-| --- | --- |
-| **Session Continuity** | Maintains conversation context using `--continue` across messages |
-| **Channel Isolation** | Each Discord channel gets its own Claude session and model preference |
-| **Configurable Hooks** | Three hook types: SessionStart, PreToolUse, PostToolUse |
-| **Model Switching** | Switch between opus and sonnet per channel (`!model opus\|sonnet`) |
-| **Attachment Support** | Upload images and PDFs to Discord; Claude reads them via the Read tool |
-| **Scheduled Automation** | 12 cron jobs: briefings, reminders, archival, health checks, and more |
-| **MCP Integrations** | Oura Ring, Google Calendar, Gmail, and Weather data via MCP servers |
-| **Claude Skills** | 6 reusable skills for morning briefings, workout logging, training plans |
-| **Medication Tracking** | Cron reminders with checkmark reaction logging to vault files |
-| **Nightly Session Archive** | Sessions archived and reset daily to keep context fresh |
-| **Tool Access** | Pre-approved tools: Read, Write, Edit, Glob, Grep, Bash (safe subset) |
-| **Timeout Protection** | 10-minute timeout for long-running requests |
+| Feature                     | Description                                                                                  |
+| --------------------------- | -------------------------------------------------------------------------------------------- |
+| **Session Continuity**      | Maintains conversation context using `--continue` across messages                            |
+| **Channel Isolation**       | Each Discord channel gets its own Claude session and model preference                        |
+| **Configurable Hooks**      | Three hook types: SessionStart, PreToolUse, PostToolUse                                      |
+| **Model Switching**         | Switch between opus and sonnet per channel (`!model opus\|sonnet`)                           |
+| **Attachment Support**      | Upload images and PDFs to Discord; Claude reads them via the Read tool                       |
+| **Scheduled Automation**    | 14 cron jobs: briefings, reminders, archival, health checks, and more                        |
+| **MCP Integrations**        | Oura Ring, Google Calendar, Gmail, and Weather data via MCP servers                          |
+| **Claude Skills**           | 8 reusable skills for briefings, workout logging, training plans, health monitoring, reviews |
+| **Medication Tracking**     | Cron reminders with checkmark reaction logging to vault files                                |
+| **Nightly Session Archive** | Sessions archived and reset daily to keep context fresh                                      |
+| **Tool Access**             | Pre-approved tools: Read, Write, Edit, Glob, Grep, Bash (safe subset)                        |
+| **Timeout Protection**      | 10-minute timeout for long-running requests                                                  |
 
 ## Requirements
 
@@ -158,17 +158,17 @@ python bot.py
 
 ### Environment Variables
 
-| Variable | Description | Required |
-| --- | --- | --- |
-| `DISCORD_TOKEN` | Discord bot token | Yes |
-| `VAULT_PATH` | Path to your notes/vault directory | Yes |
-| `SESSIONS_DIR` | Where to store session data | No |
-| `BOT_DIR` | Bot installation directory | No |
-| `SYSTEM_PROMPT_PATH` | Path to system prompt file | No |
-| `CONTEXT_PATH` | Path to persistent context file (ATLAS-Context.md) | No |
-| `TASKS_FILE_PATH` | Path to tasks file for hook injection | No |
-| `DISCORD_CHANNEL_ID` | Channel ID for `send_message.py` and cron jobs | No |
-| `DISCORD_WEBHOOK_URL` | Webhook URL for cron job notifications | No |
+| Variable              | Description                                        | Required |
+| --------------------- | -------------------------------------------------- | -------- |
+| `DISCORD_TOKEN`       | Discord bot token                                  | Yes      |
+| `VAULT_PATH`          | Path to your notes/vault directory                 | Yes      |
+| `SESSIONS_DIR`        | Where to store session data                        | No       |
+| `BOT_DIR`             | Bot installation directory                         | No       |
+| `SYSTEM_PROMPT_PATH`  | Path to system prompt file                         | No       |
+| `CONTEXT_PATH`        | Path to persistent context file (ATLAS-Context.md) | No       |
+| `TASKS_FILE_PATH`     | Path to tasks file for hook injection              | No       |
+| `DISCORD_CHANNEL_ID`  | Channel ID for `send_message.py` and cron jobs     | No       |
+| `DISCORD_WEBHOOK_URL` | Webhook URL for cron job notifications             | No       |
 
 ### File Structure
 
@@ -202,9 +202,11 @@ atlas-bot/
 │   └── skills/               # Reusable Claude skill definitions
 │       ├── morning-briefing.md
 │       ├── daily-summary.md
+│       ├── health-pattern-monitor.md
 │       ├── log-workout.md
 │       ├── log-cardio.md
 │       ├── log-medication.md
+│       ├── weekly-review.md
 │       └── weekly-training-planner.md
 ├── etc/
 │   ├── systemd/
@@ -276,12 +278,12 @@ The bot responds to:
 
 ### Commands
 
-| Command | Description |
-| --- | --- |
-| `!help` | Show available commands |
-| `!model` | Show current model (opus or sonnet) |
-| `!model sonnet\|opus` | Switch model for this channel |
-| `!reset` / `!clear` | Reset the current channel's session |
+| Command               | Description                         |
+| --------------------- | ----------------------------------- |
+| `!help`               | Show available commands             |
+| `!model`              | Show current model (opus or sonnet) |
+| `!model sonnet\|opus` | Switch model for this channel       |
+| `!reset` / `!clear`   | Reset the current channel's session |
 
 ### Example Conversation
 
@@ -302,20 +304,22 @@ ATLAS: I've updated the task in your vault:
 
 The cron dispatcher (`cron/dispatcher.py`) runs every minute via `run_cron.sh` and executes jobs defined in `cron/jobs.json`. Jobs can run Claude with specific models, tools, and prompts, or execute shell scripts directly.
 
-| Job | Schedule | Description |
-| --- | --- | --- |
-| Morning Briefing | 5:30 AM daily | Weather, calendar, training plan, medications, recovery |
-| Daily Summary | 11:55 PM daily | End-of-day review, context file updates |
-| Session Archive | 11:59 PM daily | Archive session data, reset for next day |
-| Weekly Training Planner | 12:00 PM Sun | Plan next week's training based on recovery and calendar |
-| MCP Health Check | 6:00 AM Mon | Validate OAuth tokens for Calendar and Gmail |
-| Stale Project Detector | 8:00 AM Sat | Scan vault for projects untouched 30+ days |
-| Context Drift Detector | 8:00 AM Sun | Check ATLAS-Context.md for consistency |
-| Oura Context Update | 10:00 AM daily | Backfill Oura data into workout logs |
-| Medication Reminder (Mon AM) | 5:00 AM Mon | Medication reminder via webhook |
-| Medication Reminder (Wed AM) | 5:00 AM Wed | Medication reminder via webhook |
-| Medication Reminder (Thu PM) | 8:00 PM Thu | Medication reminder via webhook |
-| Medication Reminder (Sat PM) | 8:00 PM Sat | Medication reminder via webhook |
+| Job                          | Schedule       | Description                                              |
+| ---------------------------- | -------------- | -------------------------------------------------------- |
+| Morning Briefing             | 5:30 AM daily  | Weather, calendar, training plan, medications, recovery  |
+| Daily Summary                | 11:55 PM daily | End-of-day review, context file updates                  |
+| Session Archive              | 11:59 PM daily | Archive session data, reset for next day                 |
+| Weekly Training Planner      | 12:00 PM Sun   | Plan next week's training based on recovery and calendar |
+| MCP Health Check             | 6:00 AM Mon    | Validate OAuth tokens for Calendar and Gmail             |
+| Stale Project Detector       | 8:00 AM Sat    | Scan vault for projects untouched 30+ days               |
+| Context Drift Detector       | 8:00 AM Sun    | Check ATLAS-Context.md for consistency                   |
+| Health Pattern Monitor       | 10:30 AM daily | Oura trend analysis, alerts only when noteworthy         |
+| Oura Context Update          | 10:00 AM daily | Backfill Oura data into workout logs                     |
+| Weekly Review                | 8:00 PM Sun    | Synthesize week's data into structured review            |
+| Medication Reminder (Mon AM) | 5:00 AM Mon    | Medication reminder via webhook                          |
+| Medication Reminder (Wed AM) | 5:00 AM Wed    | Medication reminder via webhook                          |
+| Medication Reminder (Thu PM) | 8:00 PM Thu    | Medication reminder via webhook                          |
+| Medication Reminder (Sat PM) | 8:00 PM Sat    | Medication reminder via webhook                          |
 
 All times are in `America/Los_Angeles`. The dispatcher tracks last run times in `cron/state/last_runs.json` to prevent duplicate executions. Use `--run-now JOB_ID` to manually trigger a job.
 
@@ -327,12 +331,13 @@ Setup:
 
 ## MCP Integrations
 
-| Server | Purpose |
-| --- | --- |
-| **Oura Ring** | Sleep, readiness, activity, HRV, and stress data (`mcp-servers/oura/`) |
-| **Google Calendar** | Event creation, listing, free/busy queries, scheduling |
-| **Gmail** | Email search, reading, sending, label and filter management |
-| **Weather** | Forecasts, current conditions, and alerts (NOAA + Open-Meteo) |
+| Server              | Purpose                                                                |
+| ------------------- | ---------------------------------------------------------------------- |
+| **Oura Ring**       | Sleep, readiness, activity, HRV, and stress data (`mcp-servers/oura/`) |
+| **Garmin Connect**  | Activities, training status, body composition, workouts, and more      |
+| **Google Calendar** | Event creation, listing, free/busy queries, scheduling                 |
+| **Gmail**           | Email search, reading, sending, label and filter management            |
+| **Weather**         | Forecasts, current conditions, and alerts (NOAA + Open-Meteo)          |
 
 See [`mcp-servers/oura/README.md`](mcp-servers/oura/README.md) for Oura server setup.
 
@@ -340,14 +345,16 @@ See [`mcp-servers/oura/README.md`](mcp-servers/oura/README.md) for Oura server s
 
 Reusable skill definitions in `.claude/skills/` that Claude can invoke via the Skill tool:
 
-| Skill | Description |
-| --- | --- |
-| `morning-briefing` | Daily briefing with weather, schedule, training, medications, recovery |
-| `daily-summary` | End-of-day review of activities and structured summary |
-| `log-workout` | Parse freeform workout reports into structured vault logs |
-| `log-cardio` | Parse freeform cardio session reports into structured logs |
-| `log-medication` | Parse medication reports and log doses with validation |
-| `weekly-training-planner` | Weekly training plan based on recovery, performance, and schedule |
+| Skill                     | Description                                                            |
+| ------------------------- | ---------------------------------------------------------------------- |
+| `morning-briefing`        | Daily briefing with weather, schedule, training, medications, recovery |
+| `daily-summary`           | End-of-day review of activities and structured summary                 |
+| `health-pattern-monitor`  | Analyze 10-day Oura trends and alert only when noteworthy              |
+| `log-workout`             | Parse freeform workout reports into structured vault logs              |
+| `log-cardio`              | Parse freeform cardio session reports into structured logs             |
+| `log-medication`          | Parse medication reports and log doses with validation                 |
+| `weekly-review`           | Synthesize week's data into structured review with trends and patterns |
+| `weekly-training-planner` | Recovery-aware training plan with calendar integration                 |
 
 ## Development
 
