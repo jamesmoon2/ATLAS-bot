@@ -16,6 +16,10 @@ meds.json
 # User profile (contains personal location data)
 user-profile.json
 
+# Audit and scrub artifacts
+AUDIT-hardcoded-values.md
+replacements.txt
+
 # MCP server secrets
 mcp-servers/credentials/
 mcp-servers/*/.env
