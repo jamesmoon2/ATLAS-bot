@@ -65,7 +65,9 @@ class TestVitaplexDosing:
 
     @pytest.mark.asyncio
     async def test_vitaplex_neupro_combined_entry(self):
-        result = await bot.log_medication_dose("Vitaplex + Neupro 300 units", "2025-06-12T20:00:00Z")
+        result = await bot.log_medication_dose(
+            "Vitaplex + Neupro 300 units", "2025-06-12T20:00:00Z"
+        )
         assert result is True
         content = self.med_file.read_text()
         assert "Vitaplex + Neupro" in content

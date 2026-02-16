@@ -132,7 +132,9 @@ class TestMedicationParsing:
         sys_dir.mkdir()
         (sys_dir / "agent-state.json").write_text("{}")
 
-        reaction, user = _make_reaction("✅", "**Medication Reminder** - Vitaplex + Neupro 300 units due")
+        reaction, user = _make_reaction(
+            "✅", "**Medication Reminder** - Vitaplex + Neupro 300 units due"
+        )
         bot.client.user = reaction.message.author
         await bot.on_reaction_add(reaction, user)
         mock_log.assert_called_once_with("Vitaplex + Neupro 300 units", "2025-06-11T12:00:00+00:00")

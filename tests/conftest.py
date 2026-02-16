@@ -36,7 +36,7 @@ def med_config(tmp_path, monkeypatch):
                 "display_name": "Medrol 5mg",
                 "location": "Fridge",
                 "vault_table_marker": "## Dosing Log",
-                "entry_format": "| {date} | 2mg | \u2014 | {day_label} | {source} |",
+                "entry_format": "| {date} | 5mg | \u2014 | {day_label} | {source} |",
                 "schedule": [
                     {"day": 3, "hour": 5, "label": "Wed AM"},
                     {"day": 6, "hour": 20, "label": "Sat PM"},
@@ -101,7 +101,7 @@ def medications_file(vault_dir):
         "\n"
         "| Date | Dose | Side Effects | Notes | Source |\n"
         "| --- | --- | --- | --- | --- |\n"
-        "| 2025-01-01 | 2mg | — | Wed AM | Manual |\n"
+        "| 2025-01-01 | 5mg | — | Wed AM | Manual |\n"
         "\n"
         "---\n"
         "\n"
