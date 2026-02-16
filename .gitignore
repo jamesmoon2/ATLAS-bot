@@ -13,6 +13,9 @@ logs/
 # Medication config (contains personal health info)
 meds.json
 
+# User profile (contains personal location data)
+user-profile.json
+
 # MCP server secrets
 mcp-servers/credentials/
 mcp-servers/*/.env

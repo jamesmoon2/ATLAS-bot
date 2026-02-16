@@ -41,6 +41,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `user-profile.json` config file for location data (gitignored), with `.json.example` template
+- `morning-briefing` skill reads weather coordinates from `user-profile.json` instead of hardcoding
+- `log-medication` skill reads medication names, schedules, and intervals from `meds.json` instead of hardcoding
+- `weekly-training-planner` skill reads program template (exercises, volume, RPE, rest periods) from Training-State.md and personal constraints (equipment, injuries, HR, schedule) from Training-Profile.md instead of hardcoding
 - Medication tracking refactored from hardcoded names/schedules to config-driven (`meds.json`)
 - 4 separate medication cron jobs consolidated into 1 config-driven job (`med_reminder`)
 - `med_reminder.sh` reads `meds.json` via jq instead of hardcoded if/elif blocks; removed duplicate curl webhook (dispatcher handles notification)
