@@ -17,7 +17,7 @@ echo "=== ATLAS Daily Summary Request: ${DATE} ==="
 # Send summary request to ATLAS via Discord
 echo "Sending summary request to ATLAS..."
 
-SUMMARY_PROMPT="Review today's conversation history (${DATE}) and create a structured summary. Write it to ${VAULT_DAILY}/${DATE}-atlas-summary.md with these sections:
+SUMMARY_PROMPT="Review today's conversation history (${DATE}) and create a structured summary. Write it to ${VAULT_DAILY}/${DATE}.md with these sections:
 
 ## Tasks Created
 List any new tasks mentioned or created today.
