@@ -26,49 +26,45 @@ class TestRunClaude:
 
     @pytest.mark.asyncio
     @patch("bot.asyncio.create_subprocess_exec")
-    @patch("bot.asyncio.wait_for")
-    async def test_json_response_parsed(self, mock_wait, mock_exec):
+    async def test_json_response_parsed(self, mock_exec):
         data = {"result": "Hello!", "modelUsage": {}}
         proc = self._mock_process(stdout=json.dumps(data).encode())
         mock_exec.return_value = proc
-        mock_wait.return_value = (json.dumps(data).encode(), b"")
 
         result = await bot.run_claude(100, "hi")
         assert result == "Hello!"
 
     @pytest.mark.asyncio
     @patch("bot.asyncio.create_subprocess_exec")
-    @patch("bot.asyncio.wait_for")
-    async def test_fallback_on_json_error(self, mock_wait, mock_exec):
+    async def test_fallback_on_json_error(self, mock_exec):
         proc = self._mock_process(stdout=b"plain text response")
         mock_exec.return_value = proc
-        mock_wait.return_value = (b"plain text response", b"")
 
         result = await bot.run_claude(100, "hi")
         assert result == "plain text response"
 
     @pytest.mark.asyncio
     @patch("bot.asyncio.create_subprocess_exec")
-    @patch("bot.asyncio.wait_for")
-    async def test_empty_result_with_stderr(self, mock_wait, mock_exec):
+    async def test_empty_result_with_stderr(self, mock_exec):
         data = {"result": ""}
         proc = self._mock_process()
         mock_exec.return_value = proc
-        mock_wait.return_value = (json.dumps(data).encode(), b"some error")
+        proc.communicate.return_value = (json.dumps(data).encode(), b"some error")
 
         result = await bot.run_claude(100, "hi")
         assert "some error" in result
 
     @pytest.mark.asyncio
     @patch("bot.asyncio.create_subprocess_exec")
-    @patch("bot.asyncio.wait_for", side_effect=asyncio.TimeoutError)
-    async def test_timeout_kills_process(self, mock_wait, mock_exec):
+    async def test_timeout_kills_process(self, mock_exec):
         proc = self._mock_process()
+        proc.communicate = AsyncMock(side_effect=[asyncio.TimeoutError, (b"", b"")])
         mock_exec.return_value = proc
 
         result = await bot.run_claude(100, "hi")
         assert "timed out" in result.lower()
         proc.kill.assert_called_once()
+        proc.communicate.assert_awaited()
 
     @pytest.mark.asyncio
     @patch("bot.asyncio.create_subprocess_exec", side_effect=FileNotFoundError("claude"))
@@ -78,14 +74,12 @@ class TestRunClaude:
 
     @pytest.mark.asyncio
     @patch("bot.asyncio.create_subprocess_exec")
-    @patch("bot.asyncio.wait_for")
-    async def test_correct_model_passed(self, mock_wait, mock_exec):
+    async def test_correct_model_passed(self, mock_exec):
         """Model from get_channel_model is passed to CLI."""
         bot.set_channel_model(100, "sonnet")
         data = {"result": "ok", "modelUsage": {}}
-        proc = self._mock_process()
+        proc = self._mock_process(stdout=json.dumps(data).encode())
         mock_exec.return_value = proc
-        mock_wait.return_value = (json.dumps(data).encode(), b"")
 
         await bot.run_claude(100, "hi")
 
@@ -96,12 +90,10 @@ class TestRunClaude:
 
     @pytest.mark.asyncio
     @patch("bot.asyncio.create_subprocess_exec")
-    @patch("bot.asyncio.wait_for")
-    async def test_cwd_is_channel_session(self, mock_wait, mock_exec):
+    async def test_cwd_is_channel_session(self, mock_exec):
         data = {"result": "ok", "modelUsage": {}}
-        proc = self._mock_process()
+        proc = self._mock_process(stdout=json.dumps(data).encode())
         mock_exec.return_value = proc
-        mock_wait.return_value = (json.dumps(data).encode(), b"")
 
         await bot.run_claude(100, "hi")
 
@@ -110,12 +102,21 @@ class TestRunClaude:
 
     @pytest.mark.asyncio
     @patch("bot.asyncio.create_subprocess_exec")
-    @patch("bot.asyncio.wait_for")
-    async def test_no_response_fallback(self, mock_wait, mock_exec):
+    async def test_no_response_fallback(self, mock_exec):
         data = {"result": ""}
         proc = self._mock_process()
         mock_exec.return_value = proc
-        mock_wait.return_value = (json.dumps(data).encode(), b"")
+        proc.communicate.return_value = (json.dumps(data).encode(), b"")
 
         result = await bot.run_claude(100, "hi")
         assert result == "No response from Claude."
+
+    @pytest.mark.asyncio
+    @patch("bot.asyncio.create_subprocess_exec")
+    async def test_nonzero_exit_uses_stderr(self, mock_exec):
+        proc = self._mock_process(stdout=b"partial output", stderr=b"fatal error", returncode=1)
+        mock_exec.return_value = proc
+
+        result = await bot.run_claude(100, "hi")
+
+        assert "fatal error" in result

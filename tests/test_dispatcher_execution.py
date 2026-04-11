@@ -13,13 +13,11 @@ class TestRunShellCommand:
 
     @pytest.mark.asyncio
     @patch("cron.dispatcher.asyncio.create_subprocess_shell")
-    @patch("cron.dispatcher.asyncio.wait_for")
-    async def test_success(self, mock_wait, mock_shell):
+    async def test_success(self, mock_shell):
         proc = MagicMock()
         proc.returncode = 0
         proc.communicate = AsyncMock(return_value=(b"hello world", b""))
         mock_shell.return_value = proc
-        mock_wait.return_value = (b"hello world", b"")
 
         output, success = await dispatcher.run_shell_command(
             {"command": "echo hello", "timeout_seconds": 30}
@@ -29,23 +27,21 @@ class TestRunShellCommand:
 
     @pytest.mark.asyncio
     @patch("cron.dispatcher.asyncio.create_subprocess_shell")
-    @patch("cron.dispatcher.asyncio.wait_for")
-    async def test_failure_nonzero_exit(self, mock_wait, mock_shell):
+    async def test_failure_nonzero_exit(self, mock_shell):
         proc = MagicMock()
         proc.returncode = 1
         proc.communicate = AsyncMock(return_value=(b"", b"error"))
         mock_shell.return_value = proc
-        mock_wait.return_value = (b"", b"error")
 
         output, success = await dispatcher.run_shell_command({"command": "false"})
         assert success is False
 
     @pytest.mark.asyncio
     @patch("cron.dispatcher.asyncio.create_subprocess_shell")
-    @patch("cron.dispatcher.asyncio.wait_for", side_effect=asyncio.TimeoutError)
-    async def test_timeout(self, mock_wait, mock_shell):
+    async def test_timeout(self, mock_shell):
         proc = MagicMock()
         proc.kill = MagicMock()
+        proc.communicate = AsyncMock(side_effect=[asyncio.TimeoutError, (b"", b"")])
         mock_shell.return_value = proc
 
         output, success = await dispatcher.run_shell_command(
@@ -57,12 +53,11 @@ class TestRunShellCommand:
 
     @pytest.mark.asyncio
     @patch("cron.dispatcher.asyncio.create_subprocess_shell")
-    @patch("cron.dispatcher.asyncio.wait_for")
-    async def test_stderr_appended(self, mock_wait, mock_shell):
+    async def test_stderr_appended(self, mock_shell):
         proc = MagicMock()
         proc.returncode = 0
+        proc.communicate = AsyncMock(return_value=(b"output", b"warning"))
         mock_shell.return_value = proc
-        mock_wait.return_value = (b"output", b"warning")
 
         output, success = await dispatcher.run_shell_command({"command": "cmd"})
         assert "Stderr:" in output
@@ -70,12 +65,11 @@ class TestRunShellCommand:
 
     @pytest.mark.asyncio
     @patch("cron.dispatcher.asyncio.create_subprocess_shell")
-    @patch("cron.dispatcher.asyncio.wait_for")
-    async def test_no_output_default_message(self, mock_wait, mock_shell):
+    async def test_no_output_default_message(self, mock_shell):
         proc = MagicMock()
         proc.returncode = 0
+        proc.communicate = AsyncMock(return_value=(b"", b""))
         mock_shell.return_value = proc
-        mock_wait.return_value = (b"", b"")
 
         output, success = await dispatcher.run_shell_command({"command": "true"})
         assert "no output" in output.lower()
@@ -93,12 +87,11 @@ class TestRunClaude:
 
     @pytest.mark.asyncio
     @patch("cron.dispatcher.asyncio.create_subprocess_exec")
-    @patch("cron.dispatcher.asyncio.wait_for")
-    async def test_datetime_injection(self, mock_wait, mock_exec):
+    async def test_datetime_injection(self, mock_exec):
         proc = MagicMock()
         proc.returncode = 0
+        proc.communicate = AsyncMock(return_value=(b"response", b""))
         mock_exec.return_value = proc
-        mock_wait.return_value = (b"response", b"")
 
         job = {
             "prompt": "Time is {current_datetime}",
@@ -117,11 +110,11 @@ class TestRunClaude:
 
     @pytest.mark.asyncio
     @patch("cron.dispatcher.asyncio.create_subprocess_exec")
-    @patch("cron.dispatcher.asyncio.wait_for")
-    async def test_model_flag(self, mock_wait, mock_exec):
+    async def test_model_flag(self, mock_exec):
         proc = MagicMock()
+        proc.returncode = 0
+        proc.communicate = AsyncMock(return_value=(b"ok", b""))
         mock_exec.return_value = proc
-        mock_wait.return_value = (b"ok", b"")
 
         job = {
             "prompt": "test",
@@ -136,11 +129,11 @@ class TestRunClaude:
 
     @pytest.mark.asyncio
     @patch("cron.dispatcher.asyncio.create_subprocess_exec")
-    @patch("cron.dispatcher.asyncio.wait_for")
-    async def test_tools_comma_separated(self, mock_wait, mock_exec):
+    async def test_tools_comma_separated(self, mock_exec):
         proc = MagicMock()
+        proc.returncode = 0
+        proc.communicate = AsyncMock(return_value=(b"ok", b""))
         mock_exec.return_value = proc
-        mock_wait.return_value = (b"ok", b"")
 
         job = {
             "prompt": "test",
@@ -155,11 +148,11 @@ class TestRunClaude:
 
     @pytest.mark.asyncio
     @patch("cron.dispatcher.asyncio.create_subprocess_exec")
-    @patch("cron.dispatcher.asyncio.wait_for")
-    async def test_prompt_caching_disabled(self, mock_wait, mock_exec):
+    async def test_prompt_caching_disabled(self, mock_exec):
         proc = MagicMock()
+        proc.returncode = 0
+        proc.communicate = AsyncMock(return_value=(b"ok", b""))
         mock_exec.return_value = proc
-        mock_wait.return_value = (b"ok", b"")
 
         job = {
             "prompt": "test",
@@ -174,10 +167,10 @@ class TestRunClaude:
 
     @pytest.mark.asyncio
     @patch("cron.dispatcher.asyncio.create_subprocess_exec")
-    @patch("cron.dispatcher.asyncio.wait_for", side_effect=asyncio.TimeoutError)
-    async def test_timeout(self, mock_wait, mock_exec):
+    async def test_timeout(self, mock_exec):
         proc = MagicMock()
         proc.kill = MagicMock()
+        proc.communicate = AsyncMock(side_effect=[asyncio.TimeoutError, (b"", b"")])
         mock_exec.return_value = proc
 
         job = {
@@ -193,11 +186,11 @@ class TestRunClaude:
 
     @pytest.mark.asyncio
     @patch("cron.dispatcher.asyncio.create_subprocess_exec")
-    @patch("cron.dispatcher.asyncio.wait_for")
-    async def test_empty_stdout_with_stderr(self, mock_wait, mock_exec):
+    async def test_empty_stdout_with_stderr(self, mock_exec):
         proc = MagicMock()
+        proc.returncode = 0
+        proc.communicate = AsyncMock(return_value=(b"", b"error details"))
         mock_exec.return_value = proc
-        mock_wait.return_value = (b"", b"error details")
 
         job = {
             "prompt": "test",
@@ -209,6 +202,26 @@ class TestRunClaude:
         output, success = await dispatcher.run_claude(job)
         assert success is False
         assert "error details" in output
+
+    @pytest.mark.asyncio
+    @patch("cron.dispatcher.asyncio.create_subprocess_exec")
+    async def test_nonzero_exit_marks_failure(self, mock_exec):
+        proc = MagicMock()
+        proc.returncode = 1
+        proc.communicate = AsyncMock(return_value=(b"partial output", b"fatal error"))
+        mock_exec.return_value = proc
+
+        job = {
+            "prompt": "test",
+            "allowed_tools": ["Read"],
+            "timeout_seconds": 60,
+            "model": "opus",
+            "timezone": "UTC",
+        }
+        output, success = await dispatcher.run_claude(job)
+
+        assert success is False
+        assert "fatal error" in output
 
 
 class TestExecuteJob:

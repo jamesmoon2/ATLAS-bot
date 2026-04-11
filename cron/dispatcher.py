@@ -15,6 +15,7 @@ import asyncio
 import json
 import os
 import sys
+import tempfile
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -50,10 +51,30 @@ def load_state() -> dict:
     return {}
 
 
+def _atomic_write_text(path: Path, content: str) -> None:
+    """Atomically replace a text file."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.NamedTemporaryFile("w", dir=path.parent, delete=False, encoding="utf-8") as tmp:
+        tmp.write(content)
+        temp_path = Path(tmp.name)
+    temp_path.replace(path)
+
+
 def save_state(state: dict) -> None:
     """Persist last run times."""
-    STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    STATE_FILE.write_text(json.dumps(state, indent=2))
+    _atomic_write_text(STATE_FILE, json.dumps(state, indent=2))
+
+
+async def _kill_process(process: asyncio.subprocess.Process) -> None:
+    """Terminate and reap a subprocess."""
+    process.kill()
+    await process.communicate()
+
+
+def _combine_process_output(stdout: bytes, stderr: bytes) -> str:
+    """Combine stdout/stderr for logging and user-facing errors."""
+    parts = [stdout.decode().strip(), stderr.decode().strip()]
+    return "\n\nStderr:\n".join(part for part in parts if part)
 
 
 def is_job_due(job: dict, state: dict, now: datetime) -> bool:
@@ -110,6 +131,7 @@ async def run_shell_command(job: dict) -> tuple[str, bool]:
     vault_path = os.getenv("VAULT_PATH", "")
     command = job["command"].replace("{vault_path}", vault_path).replace("{bot_dir}", str(BOT_DIR))
     timeout = job.get("timeout_seconds", 180)
+    process: asyncio.subprocess.Process | None = None
 
     try:
         process = await asyncio.create_subprocess_shell(
@@ -120,20 +142,13 @@ async def run_shell_command(job: dict) -> tuple[str, bool]:
         )
 
         stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout)
-
-        output = stdout.decode().strip()
-        error_output = stderr.decode().strip()
-
-        # Combine stdout and stderr for logging
-        combined_output = output
-        if error_output:
-            combined_output += f"\n\nStderr:\n{error_output}"
-
+        combined_output = _combine_process_output(stdout, stderr)
         success = process.returncode == 0
         return combined_output or "Command executed (no output)", success
 
     except asyncio.TimeoutError:
-        process.kill()
+        if process is not None:
+            await _kill_process(process)
         return f"Command timed out after {timeout} seconds.", False
     except Exception as e:
         return f"Error executing command: {str(e)}", False
@@ -144,6 +159,7 @@ async def run_claude(job: dict) -> tuple[str, bool]:
     allowed_tools = ",".join(job.get("allowed_tools", ["Read"]))
     timeout = job.get("timeout_seconds", 180)
     model = job.get("model", "opus")
+    process: asyncio.subprocess.Process | None = None
 
     # Inject template variables into prompt
     tz = ZoneInfo(job.get("timezone", "America/Los_Angeles"))
@@ -176,9 +192,15 @@ async def run_claude(job: dict) -> tuple[str, bool]:
         )
 
         stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout)
-
         output = stdout.decode().strip()
-        error_output = stderr.decode().strip() if stderr else ""
+        error_output = stderr.decode().strip()
+
+        if process.returncode != 0:
+            return (
+                _combine_process_output(stdout, stderr)
+                or f"Claude exited with status {process.returncode}.",
+                False,
+            )
 
         if not output:
             if error_output:
@@ -188,7 +210,8 @@ async def run_claude(job: dict) -> tuple[str, bool]:
         return output, True
 
     except asyncio.TimeoutError:
-        process.kill()
+        if process is not None:
+            await _kill_process(process)
         return f"Job timed out after {timeout} seconds.", False
     except Exception as e:
         return f"Error: {str(e)}", False

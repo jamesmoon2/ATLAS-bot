@@ -14,6 +14,11 @@ def _patch_env(vault_dir, med_config, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _fixed_timestamp(monkeypatch):
+    monkeypatch.setattr(bot, "get_reaction_timestamp", lambda: "2025-06-11T12:05:00+00:00")
+
+
+@pytest.fixture(autouse=True)
 def _mock_client(monkeypatch):
     """Replace bot.client with a MagicMock so .user is settable."""
     mock_client = MagicMock()
@@ -95,7 +100,7 @@ class TestWebhookReaction:
         # Author is NOT the bot
         bot.client.user = MagicMock()
         await bot.on_reaction_add(reaction, user)
-        mock_log.assert_called_once_with("Medrol 5mg", "2025-06-11T12:00:00+00:00")
+        mock_log.assert_called_once_with("Medrol 5mg", "2025-06-11T12:05:00+00:00")
 
     @pytest.mark.asyncio
     async def test_webhook_non_medication_ignored(self):
@@ -123,7 +128,7 @@ class TestMedicationParsing:
         reaction, user = _make_reaction("✅", "**Medication Reminder** - Medrol 5mg is due")
         bot.client.user = reaction.message.author
         await bot.on_reaction_add(reaction, user)
-        mock_log.assert_called_once_with("Medrol 5mg", "2025-06-11T12:00:00+00:00")
+        mock_log.assert_called_once_with("Medrol 5mg", "2025-06-11T12:05:00+00:00")
 
     @pytest.mark.asyncio
     @patch("bot.log_medication_dose", return_value=True)
@@ -137,7 +142,7 @@ class TestMedicationParsing:
         )
         bot.client.user = reaction.message.author
         await bot.on_reaction_add(reaction, user)
-        mock_log.assert_called_once_with("Vitaplex + Neupro 300 units", "2025-06-11T12:00:00+00:00")
+        mock_log.assert_called_once_with("Vitaplex + Neupro 300 units", "2025-06-11T12:05:00+00:00")
 
     @pytest.mark.asyncio
     @patch("bot.log_medication_dose", return_value=True)
@@ -149,7 +154,7 @@ class TestMedicationParsing:
         reaction, user = _make_reaction("✅", "**Medication Reminder** - Vitaplex is due")
         bot.client.user = reaction.message.author
         await bot.on_reaction_add(reaction, user)
-        mock_log.assert_called_once_with("Vitaplex", "2025-06-11T12:00:00+00:00")
+        mock_log.assert_called_once_with("Vitaplex", "2025-06-11T12:05:00+00:00")
 
 
 class TestSuccessActions:
@@ -180,3 +185,4 @@ class TestSuccessActions:
 
         state = json.loads((sys_dir / "agent-state.json").read_text())
         assert state["med_reminders"]["Medrol 5mg"]["confirmed"] is True
+        assert state["med_reminders"]["Medrol 5mg"]["confirmed_at"] == "2025-06-11T12:05:00+00:00"

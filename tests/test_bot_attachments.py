@@ -81,6 +81,16 @@ class TestDownloadAttachments:
         paths = await bot.download_attachments(100, [att])
         assert len(paths) == 1
 
+    @pytest.mark.asyncio
+    async def test_sanitizes_attachment_filename(self):
+        att = self._make_att("../../weird folder/quarterly report?.pdf")
+        paths = await bot.download_attachments(100, [att])
+
+        filename = os.path.basename(paths[0])
+        assert ".." not in filename
+        assert "/" not in filename
+        assert "quarterly_report_" in filename
+
 
 class TestBuildPromptWithFiles:
     """build_prompt_with_files() appends file references to content."""

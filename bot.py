@@ -3,9 +3,13 @@
 import asyncio
 import json
 import os
+import re
+import shlex
 import shutil
 import signal
+import tempfile
 import uuid
+from datetime import datetime, timezone
 from typing import Any
 
 import discord
@@ -42,39 +46,121 @@ def get_channel_lock(channel_id: int) -> asyncio.Lock:
     return channel_locks[channel_id]
 
 
+def _shell_command(program: str, *args: str) -> str:
+    """Build a shell command with safely quoted arguments."""
+    return " ".join(shlex.quote(part) for part in (program, *args))
+
+
+def _atomic_write_text(path: str, content: str) -> None:
+    """Atomically replace a text file."""
+    directory = os.path.dirname(path) or "."
+    os.makedirs(directory, exist_ok=True)
+    fd, temp_path = tempfile.mkstemp(dir=directory)
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(content)
+        os.replace(temp_path, path)
+    except Exception:
+        try:
+            os.unlink(temp_path)
+        except OSError:
+            pass
+        raise
+
+
+def _atomic_write_json(path: str, data: dict[str, Any]) -> None:
+    """Atomically replace a JSON file."""
+    _atomic_write_text(path, json.dumps(data, indent=2))
+
+
+def _sanitize_attachment_filename(filename: str) -> str:
+    """Collapse unsafe attachment path characters into a safe basename."""
+    basename = os.path.basename(filename.replace("\\", "/"))
+    safe_name = re.sub(r"[^A-Za-z0-9._-]", "_", basename).strip("._")
+    return safe_name or "attachment"
+
+
+async def _kill_process(process: asyncio.subprocess.Process) -> None:
+    """Terminate and reap a subprocess."""
+    process.kill()
+    await process.communicate()
+
+
+def _format_process_error(
+    stdout: bytes,
+    stderr: bytes,
+    *,
+    prefix: str = "Error",
+    fallback: str = "Process failed with no output.",
+) -> str:
+    """Build a user-facing error message from subprocess output."""
+    parts = [stdout.decode().strip(), stderr.decode().strip()]
+    message = "\n\n".join(part for part in parts if part)
+    return f"{prefix}: {message}" if message else f"{prefix}: {fallback}"
+
+
+def get_reaction_timestamp() -> str:
+    """Return the current UTC timestamp for a reaction confirmation."""
+    return datetime.now(timezone.utc).isoformat()
+
+
 # Claude settings for each channel session (built dynamically from env vars)
 CHANNEL_SETTINGS: dict[str, Any] = {
     "hooks": {
         "SessionStart": [
             {
                 "hooks": [
-                    {"type": "command", "command": f"cat {SYSTEM_PROMPT_PATH}"},
-                    {"type": "command", "command": f"cat {CONTEXT_PATH}"},
+                    {"type": "command", "command": _shell_command("cat", SYSTEM_PROMPT_PATH)},
+                    {"type": "command", "command": _shell_command("cat", CONTEXT_PATH)},
                     {"type": "command", "command": "echo '\n---\n# Session Context'"},
                     {
                         "type": "command",
                         "command": "TZ='America/Los_Angeles' date '+**Current Time:** %A, %B %d, %Y %H:%M %Z'",
                     },
-                    {"type": "command", "command": f"{BOT_DIR}/hooks/tasks_summary.sh"},
-                    {"type": "command", "command": f"{BOT_DIR}/hooks/recent_changes.sh"},
-                    {"type": "command", "command": f"{BOT_DIR}/hooks/recent_summaries.sh"},
+                    {
+                        "type": "command",
+                        "command": shlex.quote(f"{BOT_DIR}/hooks/tasks_summary.sh"),
+                    },
+                    {
+                        "type": "command",
+                        "command": shlex.quote(f"{BOT_DIR}/hooks/recent_changes.sh"),
+                    },
+                    {
+                        "type": "command",
+                        "command": shlex.quote(f"{BOT_DIR}/hooks/recent_summaries.sh"),
+                    },
                 ]
             }
         ],
         "PreToolUse": [
             {
                 "matcher": "mcp__google-calendar__create-event",
-                "hooks": [{"type": "command", "command": f"{BOT_DIR}/hooks/calendar_context.sh"}],
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": shlex.quote(f"{BOT_DIR}/hooks/calendar_context.sh"),
+                    }
+                ],
             },
             {
                 "matcher": "mcp__google-calendar__update-event",
-                "hooks": [{"type": "command", "command": f"{BOT_DIR}/hooks/calendar_context.sh"}],
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": shlex.quote(f"{BOT_DIR}/hooks/calendar_context.sh"),
+                    }
+                ],
             },
         ],
         "PostToolUse": [
             {
                 "matcher": "Write(**Workout-Logs/20*.md)",
-                "hooks": [{"type": "command", "command": f"{BOT_DIR}/hooks/workout_oura_data.sh"}],
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": shlex.quote(f"{BOT_DIR}/hooks/workout_oura_data.sh"),
+                    }
+                ],
             }
         ],
     }
@@ -121,13 +207,11 @@ def ensure_channel_session(channel_id: int) -> str:
 
     # Write settings.json (hooks) - always overwrite to pick up code changes
     settings_path = os.path.join(claude_dir, "settings.json")
-    with open(settings_path, "w") as f:
-        json.dump(CHANNEL_SETTINGS, f, indent=2)
+    _atomic_write_json(settings_path, CHANNEL_SETTINGS)
 
     # Write settings.local.json (permissions) - always overwrite to pick up code changes
     local_settings_path = os.path.join(claude_dir, "settings.local.json")
-    with open(local_settings_path, "w") as f:
-        json.dump(CHANNEL_PERMISSIONS, f, indent=2)
+    _atomic_write_json(local_settings_path, CHANNEL_PERMISSIONS)
 
     # Create skills symlink if it doesn't exist
     skills_symlink = os.path.join(claude_dir, "skills")
@@ -179,7 +263,8 @@ async def download_attachments(channel_id: int, attachments: list) -> list[str]:
         if ext.lower() not in SUPPORTED_MEDIA:
             continue
 
-        unique_name = f"{uuid.uuid4().hex[:8]}_{att.filename}"
+        safe_name = _sanitize_attachment_filename(att.filename)
+        unique_name = f"{uuid.uuid4().hex[:8]}_{safe_name}"
         file_path = os.path.join(attachments_dir, unique_name)
 
         try:
@@ -204,7 +289,7 @@ def build_prompt_with_files(content: str, file_paths: list[str]) -> str:
 
 
 def get_channel_model(channel_id: int) -> str:
-    """Get the model preference for a channel, default to sonnet."""
+    """Get the model preference for a channel, default to opus."""
     channel_dir = os.path.join(SESSIONS_DIR, str(channel_id))
     model_file = os.path.join(channel_dir, "model.txt")
     if os.path.exists(model_file):
@@ -217,8 +302,7 @@ def set_channel_model(channel_id: int, model: str) -> None:
     """Set the model preference for a channel."""
     channel_dir = ensure_channel_session(channel_id)
     model_file = os.path.join(channel_dir, "model.txt")
-    with open(model_file, "w") as f:
-        f.write(model)
+    _atomic_write_text(model_file, model)
 
 
 async def run_claude(channel_id: int, message_content: str) -> str:
@@ -227,6 +311,7 @@ async def run_claude(channel_id: int, message_content: str) -> str:
     Returns:
         str: response_text
     """
+    process: asyncio.subprocess.Process | None = None
     try:
         channel_dir = ensure_channel_session(channel_id)
         model = get_channel_model(channel_id)
@@ -251,10 +336,14 @@ async def run_claude(channel_id: int, message_content: str) -> str:
             env={k: v for k, v in os.environ.items() if k != "CLAUDECODE"},
         )
 
-        stdout, stderr = await asyncio.wait_for(
-            process.communicate(),
-            timeout=600,  # 10 minute timeout
-        )
+        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=600)
+
+        if process.returncode != 0:
+            return _format_process_error(
+                stdout,
+                stderr,
+                fallback=f"Claude exited with status {process.returncode}.",
+            )
 
         # Parse JSON response
         try:
@@ -274,7 +363,8 @@ async def run_claude(channel_id: int, message_content: str) -> str:
             return response if response else "No response from Claude."
 
     except asyncio.TimeoutError:
-        process.kill()
+        if process is not None:
+            await _kill_process(process)
         return "Request timed out after 10 minutes."
     except Exception as e:
         return f"Error: {str(e)}"
@@ -397,8 +487,6 @@ async def log_medication_dose(med_name: str, timestamp: str) -> bool:
         bool: True if logged successfully
     """
     try:
-        from datetime import datetime
-
         med_file = f"{VAULT_PATH}/Areas/Health/Medications.md"
 
         # Read current file
@@ -448,8 +536,7 @@ async def log_medication_dose(med_name: str, timestamp: str) -> bool:
         lines.insert(insert_index, entry)
 
         # Write back
-        with open(med_file, "w") as f:
-            f.writelines(lines)
+        _atomic_write_text(med_file, "".join(lines))
 
         print(f"Logged dose: {med_name} at {date_str} ({day_of_week})")
         return True
@@ -495,8 +582,8 @@ async def on_reaction_add(reaction: discord.Reaction, user: discord.User):
         print("Could not parse medication name from reminder")
         return
 
-    # Get timestamp (use reaction time)
-    timestamp = reaction.message.created_at.isoformat()
+    # Discord does not expose a per-reaction timestamp here, so record confirmation time.
+    timestamp = get_reaction_timestamp()
 
     # Log the dose
     success = await log_medication_dose(med_name, timestamp)
@@ -514,8 +601,7 @@ async def on_reaction_add(reaction: discord.Reaction, user: discord.User):
             state["med_reminders"][med_name]["confirmed"] = True
             state["med_reminders"][med_name]["confirmed_at"] = timestamp
 
-            with open(state_file, "w") as f:
-                json.dump(state, f, indent=2)
+            _atomic_write_json(state_file, state)
 
             print(f"Updated agent state for {med_name}")
 

@@ -25,30 +25,40 @@ CHANNEL_ID = int(os.getenv("DISCORD_CHANNEL_ID", "0"))
 
 async def send_message(content: str) -> bool:
     """Send message to Discord channel via bot."""
+    if not DISCORD_TOKEN:
+        print("Error: DISCORD_TOKEN is not configured")
+        return False
+
+    if CHANNEL_ID <= 0:
+        print("Error: DISCORD_CHANNEL_ID is not configured")
+        return False
+
     intents = discord.Intents.default()
     intents.message_content = True
 
     client = discord.Client(intents=intents)
+    sent = False
 
     @client.event
     async def on_ready():
+        nonlocal sent
         try:
             channel = client.get_channel(CHANNEL_ID)
             if not channel:
                 print(f"Error: Could not find channel {CHANNEL_ID}")
-                await client.close()
                 return
 
             await channel.send(content)
+            sent = True
             print(f"Message sent to channel {CHANNEL_ID}")
-            await client.close()
         except Exception as e:
             print(f"Error sending message: {e}")
+        finally:
             await client.close()
 
     try:
         await client.start(DISCORD_TOKEN)
-        return True
+        return sent
     except Exception as e:
         print(f"Error connecting to Discord: {e}")
         return False
