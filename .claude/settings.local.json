@@ -23,12 +23,12 @@
     ]
   },
   "enabledMcpjsonServers": [
-    "weather"
-  ],
-  "disabledMcpjsonServers": [
+    "weather",
     "google-calendar",
     "gmail",
-    "oura"
+    "oura",
+    "whoop"
   ],
+  "disabledMcpjsonServers": [],
   "enableAllProjectMcpServers": true
 }

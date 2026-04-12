@@ -129,6 +129,10 @@ CHANNEL_SETTINGS: dict[str, Any] = {
                         "type": "command",
                         "command": shlex.quote(f"{BOT_DIR}/hooks/recent_summaries.sh"),
                     },
+                    {
+                        "type": "command",
+                        "command": shlex.quote(f"{BOT_DIR}/hooks/librarian_context.sh"),
+                    },
                 ]
             }
         ],
@@ -213,11 +217,18 @@ def ensure_channel_session(channel_id: int) -> str:
     local_settings_path = os.path.join(claude_dir, "settings.local.json")
     _atomic_write_json(local_settings_path, CHANNEL_PERMISSIONS)
 
-    # Create skills symlink if it doesn't exist
+    # Point channel sessions at the repo-local skills so Discord sees checked-in updates.
     skills_symlink = os.path.join(claude_dir, "skills")
-    skills_target = os.path.expanduser("~/.claude/skills")
-    if not os.path.exists(skills_symlink) and os.path.exists(skills_target):
-        os.symlink(skills_target, skills_symlink)
+    skills_target = os.path.join(BOT_DIR, ".claude", "skills")
+    if os.path.isdir(skills_target):
+        desired_target = os.path.realpath(skills_target)
+        if os.path.islink(skills_symlink):
+            current_target = os.path.realpath(skills_symlink)
+            if current_target != desired_target:
+                os.unlink(skills_symlink)
+                os.symlink(skills_target, skills_symlink)
+        elif not os.path.exists(skills_symlink):
+            os.symlink(skills_target, skills_symlink)
 
     return channel_dir
 
@@ -286,6 +297,52 @@ def build_prompt_with_files(content: str, file_paths: list[str]) -> str:
         files_section += f"- {path}\n"
 
     return (content or "Please analyze the attached file(s).") + files_section
+
+
+def build_librarian_prompt(command: str, args: str) -> str:
+    """Build a librarian-focused Claude prompt for note recall and review workflows."""
+    index_path = os.path.join(VAULT_PATH, "System", "vault-index.json")
+    markdown_index_path = os.path.join(VAULT_PATH, "System", "vault-index.md")
+    query = args.strip()
+
+    if command == "recall":
+        return (
+            "Act as ATLAS's second-brain librarian.\n\n"
+            f"Use `{index_path}` as the primary map of the vault and `{markdown_index_path}` for a "
+            "human-readable overview. Read any relevant notes you need.\n\n"
+            f"Recall request: {query}\n\n"
+            "Respond with:\n"
+            "1. The most relevant notes or areas to inspect\n"
+            "2. A concise synthesis of what the vault says\n"
+            "3. Any open loops or contradictions you notice\n"
+            "4. Suggested next notes to open if context is missing"
+        )
+
+    prompts = {
+        "open-loops": (
+            "Act as ATLAS's second-brain librarian.\n\n"
+            f"Use `{index_path}` and related notes to summarize the user's current open loops. "
+            "Prioritize unresolved tasks, waiting states, and notes with Next Actions / Unresolved / "
+            "Waiting On / TBD sections. Group the result by theme and keep it concise."
+        ),
+        "recent-notes": (
+            "Act as ATLAS's second-brain librarian.\n\n"
+            f"Use `{index_path}` to identify the most recently updated notes. Read the most relevant "
+            "recent notes and summarize what changed, why it matters, and any follow-up worth doing."
+        ),
+        "orphan-notes": (
+            "Act as ATLAS's second-brain librarian.\n\n"
+            f"Use `{index_path}` to identify orphan notes. Read the highest-priority orphan notes and "
+            "report which ones should be linked, archived, merged, or ignored."
+        ),
+        "librarian": (
+            "Act as ATLAS's second-brain librarian.\n\n"
+            f"Use `{index_path}` as the primary vault map. Provide a compact librarian digest covering "
+            "recent note activity, open loops, orphan notes, stale notes, and the 3 highest-value "
+            "cleanup or synthesis actions."
+        ),
+    }
+    return prompts[command]
 
 
 def get_channel_model(channel_id: int) -> str:
@@ -414,6 +471,11 @@ async def on_message(message):
             "**!help** - Show this message\n"
             "**!model** - Show current model\n"
             "**!model sonnet|opus** - Switch model\n"
+            "**!recall <query>** - Search your vault like a librarian\n"
+            "**!recent-notes** - Summarize recently updated notes\n"
+            "**!open-loops** - Review unresolved tasks and waiting states\n"
+            "**!orphan-notes** - Find notes that need links or cleanup\n"
+            "**!librarian** - Generate a compact second-brain digest\n"
             "**!reset** - Clear session and start fresh\n\n"
             "Or just send a message and I'll respond."
         )
@@ -437,6 +499,42 @@ async def on_message(message):
             else:
                 await message.channel.send("Invalid model. Use: !model sonnet or !model opus")
                 return
+
+    librarian_commands = {
+        "!recall": "recall",
+        "!open-loops": "open-loops",
+        "!recent-notes": "recent-notes",
+        "!orphan-notes": "orphan-notes",
+        "!librarian": "librarian",
+    }
+    lowered_content = content.lower()
+    for prefix, command_name in librarian_commands.items():
+        if lowered_content == prefix or lowered_content.startswith(prefix + " "):
+            args = content[len(prefix) :].strip()
+            if command_name == "recall" and not args:
+                await message.channel.send("Usage: !recall <query>")
+                return
+            prompt = build_librarian_prompt(command_name, args)
+            print(f"  Librarian command: {command_name}")
+
+            lock = get_channel_lock(message.channel.id)
+            if lock.locked():
+                await message.channel.send("Processing your previous message, one moment...")
+
+            async with message.channel.typing():
+                async with lock:
+                    response = await run_claude(message.channel.id, prompt)
+
+            if len(response) <= MAX_RESPONSE_LENGTH:
+                await message.channel.send(response)
+            else:
+                chunks = [
+                    response[i : i + MAX_RESPONSE_LENGTH]
+                    for i in range(0, len(response), MAX_RESPONSE_LENGTH)
+                ]
+                for chunk in chunks:
+                    await message.channel.send(chunk)
+            return
 
     # Download attachments (images, PDFs, etc.)
     downloaded_files = []

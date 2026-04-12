@@ -33,9 +33,13 @@ class TestEnsureChannelSession:
     """ensure_channel_session() creates session dirs and writes config."""
 
     @pytest.fixture(autouse=True)
-    def _patch(self, sessions_dir, monkeypatch):
+    def _patch(self, tmp_path, sessions_dir, monkeypatch):
         monkeypatch.setattr(bot, "SESSIONS_DIR", str(sessions_dir))
+        bot_dir = tmp_path / "bot"
+        (bot_dir / ".claude" / "skills").mkdir(parents=True)
+        monkeypatch.setattr(bot, "BOT_DIR", str(bot_dir))
         self.sessions_dir = sessions_dir
+        self.bot_dir = bot_dir
 
     def test_creates_channel_dir(self):
         result = bot.ensure_channel_session(100)
@@ -70,6 +74,30 @@ class TestEnsureChannelSession:
     def test_returns_channel_dir_path(self):
         result = bot.ensure_channel_session(100)
         assert result == str(self.sessions_dir / "100")
+
+    def test_creates_skills_symlink_to_repo_local_skills(self):
+        bot.ensure_channel_session(100)
+        skills_link = self.sessions_dir / "100" / ".claude" / "skills"
+        assert skills_link.is_symlink()
+        assert os.path.realpath(skills_link) == os.path.realpath(
+            self.bot_dir / ".claude" / "skills"
+        )
+
+    def test_updates_existing_skills_symlink_target(self, tmp_path):
+        wrong_target = tmp_path / "wrong-skills"
+        wrong_target.mkdir()
+
+        claude_dir = self.sessions_dir / "100" / ".claude"
+        claude_dir.mkdir(parents=True, exist_ok=True)
+        skills_link = claude_dir / "skills"
+        skills_link.symlink_to(wrong_target)
+
+        bot.ensure_channel_session(100)
+
+        assert skills_link.is_symlink()
+        assert os.path.realpath(skills_link) == os.path.realpath(
+            self.bot_dir / ".claude" / "skills"
+        )
 
 
 class TestResetChannelSession:

@@ -31,6 +31,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Health pattern monitor — daily Oura trend analysis, alerts only when noteworthy
 - Weekly review — Sunday synthesis of daily summaries, health metrics, and project activity
 - Weekly training planner — recovery-aware training plan generation with calendar integration
+- Vault index builder (`cron/vault_index.py`) that writes `vault-index.json` and `vault-index.md`
+- Second brain librarian skill plus Discord commands for `!recall`, `!recent-notes`, `!open-loops`, `!orphan-notes`, and `!librarian`
+- Librarian SessionStart hook (`hooks/librarian_context.sh`) for compact vault context injection
+- `vault_index_refresh` and `librarian_digest` cron jobs
 - Garmin MCP tool permissions for cron and Discord sessions
 - Automatic skills symlink creation in Discord channel sessions for skill discovery
 - `suppress_if_contains` feature in cron dispatcher for silent-unless-noteworthy jobs
@@ -56,6 +60,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Hooks now span three event types: SessionStart, PreToolUse, PostToolUse
 - `DISCORD_WEBHOOK_URL` used for cron job notifications (was daily digest)
 - Recent daily summaries now injected into SessionStart context via `recent_summaries.sh`
+- Discord session skills now point directly at the repo-local `.claude/skills` directory for portability
 
 ### Fixed
 

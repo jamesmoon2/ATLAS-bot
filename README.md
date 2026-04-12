@@ -113,20 +113,21 @@ stateDiagram-v2
 
 ## Features
 
-| Feature                     | Description                                                                                  |
-| --------------------------- | -------------------------------------------------------------------------------------------- |
-| **Session Continuity**      | Maintains conversation context using `--continue` across messages                            |
-| **Channel Isolation**       | Each Discord channel gets its own Claude session and model preference                        |
-| **Configurable Hooks**      | Three hook types: SessionStart, PreToolUse, PostToolUse                                      |
-| **Model Switching**         | Switch between opus and sonnet per channel (`!model opus\|sonnet`)                           |
-| **Attachment Support**      | Upload images and PDFs to Discord; Claude reads them via the Read tool                       |
-| **Scheduled Automation**    | 12 cron jobs: briefings, reminders, archival, health checks, and more                        |
-| **MCP Integrations**        | Oura Ring, Google Calendar, Gmail, and Weather data via MCP servers                          |
-| **Claude Skills**           | 8 reusable skills for briefings, workout logging, training plans, health monitoring, reviews |
-| **Medication Tracking**     | Config-driven cron reminders (`meds.json`) with checkmark reaction logging to vault files    |
-| **Nightly Session Archive** | Sessions archived and reset daily to keep context fresh                                      |
-| **Tool Access**             | Pre-approved tools: Read, Write, Edit, Glob, Grep, Bash (safe subset)                        |
-| **Timeout Protection**      | 10-minute timeout for long-running requests                                                  |
+| Feature                     | Description                                                                                    |
+| --------------------------- | ---------------------------------------------------------------------------------------------- |
+| **Session Continuity**      | Maintains conversation context using `--continue` across messages                              |
+| **Channel Isolation**       | Each Discord channel gets its own Claude session and model preference                          |
+| **Configurable Hooks**      | Three hook types: SessionStart, PreToolUse, PostToolUse                                        |
+| **Model Switching**         | Switch between opus and sonnet per channel (`!model opus\|sonnet`)                             |
+| **Attachment Support**      | Upload images and PDFs to Discord; Claude reads them via the Read tool                         |
+| **Scheduled Automation**    | 12 cron jobs: briefings, reminders, archival, health checks, and more                          |
+| **MCP Integrations**        | Oura Ring, Google Calendar, Gmail, and Weather data via MCP servers                            |
+| **Claude Skills**           | 9 reusable skills for briefings, workout logging, training plans, health monitoring, reviews   |
+| **Second Brain Librarian**  | Vault indexing, note recall, open-loop review, orphan-note detection, and twice-weekly digests |
+| **Medication Tracking**     | Config-driven cron reminders (`meds.json`) with checkmark reaction logging to vault files      |
+| **Nightly Session Archive** | Sessions archived and reset daily to keep context fresh                                        |
+| **Tool Access**             | Pre-approved tools: Read, Write, Edit, Glob, Grep, Bash (safe subset)                          |
+| **Timeout Protection**      | 10-minute timeout for long-running requests                                                    |
 
 ## Requirements
 
@@ -189,11 +190,13 @@ atlas-bot/
 │   ├── daily_summary.sh      # End-of-day summary generator
 │   ├── med_reminder.sh       # Medication reminder via webhook
 │   ├── session_archive.sh    # Nightly session archive and reset
-│   └── task_triage.sh        # Task prioritization helper
+│   ├── task_triage.sh        # Task prioritization helper
+│   └── vault_index.py        # Builds machine-readable vault index
 ├── hooks/
 │   ├── tasks_summary.sh      # SessionStart: inject due tasks
 │   ├── recent_changes.sh     # SessionStart: inject recent file changes
 │   ├── recent_summaries.sh   # Recent daily summary context
+│   ├── librarian_context.sh  # SessionStart: inject compact vault snapshot
 │   ├── calendar_context.sh   # PreToolUse: 7-day calendar for event creation
 │   └── workout_oura_data.sh  # PostToolUse: fetch Oura data after workout log
 ├── mcp-servers/
@@ -209,6 +212,7 @@ atlas-bot/
 │       ├── log-workout.md
 │       ├── log-cardio.md
 │       ├── log-medication.md
+│       ├── second-brain-librarian.md
 │       ├── weekly-review.md
 │       └── weekly-training-planner.md
 ├── etc/
@@ -281,12 +285,17 @@ The bot responds to:
 
 ### Commands
 
-| Command               | Description                         |
-| --------------------- | ----------------------------------- |
-| `!help`               | Show available commands             |
-| `!model`              | Show current model (opus or sonnet) |
-| `!model sonnet\|opus` | Switch model for this channel       |
-| `!reset` / `!clear`   | Reset the current channel's session |
+| Command               | Description                                |
+| --------------------- | ------------------------------------------ |
+| `!help`               | Show available commands                    |
+| `!model`              | Show current model (opus or sonnet)        |
+| `!model sonnet\|opus` | Switch model for this channel              |
+| `!recall <query>`     | Search the vault like a librarian          |
+| `!recent-notes`       | Summarize recently updated notes           |
+| `!open-loops`         | Review unresolved tasks and waiting states |
+| `!orphan-notes`       | Find notes that need links or cleanup      |
+| `!librarian`          | Generate a compact vault digest            |
+| `!reset` / `!clear`   | Reset the current channel's session        |
 
 ### Example Conversation
 
@@ -307,20 +316,22 @@ ATLAS: I've updated the task in your vault:
 
 The cron dispatcher (`cron/dispatcher.py`) runs every minute via `run_cron.sh` and executes jobs defined in `cron/jobs.json`. Jobs can run Claude with specific models, tools, and prompts, or execute shell scripts directly.
 
-| Job                     | Schedule       | Description                                              |
-| ----------------------- | -------------- | -------------------------------------------------------- |
-| Morning Briefing        | 5:30 AM daily  | Weather, calendar, training plan, medications, recovery  |
-| Daily Summary           | 11:55 PM daily | End-of-day review, context file updates                  |
-| Session Archive         | 11:59 PM daily | Archive session data, reset for next day                 |
-| Weekly Training Planner | 12:00 PM Sun   | Plan next week's training based on recovery and calendar |
-| MCP Health Check        | 6:00 AM Mon    | Validate OAuth tokens for Calendar and Gmail             |
-| Stale Project Detector  | 8:00 AM Sat    | Scan vault for projects untouched 30+ days               |
-| Context Drift Detector  | 8:00 AM Sun    | Check ATLAS-Context.md for consistency                   |
-| Health Pattern Monitor  | 10:30 AM daily | Oura trend analysis, alerts only when noteworthy         |
-| Oura Context Update     | 10:00 AM daily | Backfill Oura data into workout logs                     |
-| Weekly Review           | 8:00 PM Sun    | Synthesize week's data into structured review            |
-| Medication Reminder     | 5 AM & 8 PM    | Config-driven medication reminders (reads `meds.json`)   |
-| Medication Config Sync  | 1:00 AM daily  | Syncs `meds.json` with vault `Medications.md`            |
+| Job                     | Schedule        | Description                                                |
+| ----------------------- | --------------- | ---------------------------------------------------------- |
+| Morning Briefing        | 5:30 AM daily   | Weather, calendar, training plan, medications, recovery    |
+| Daily Summary           | 11:55 PM daily  | End-of-day review, context file updates                    |
+| Session Archive         | 11:59 PM daily  | Archive session data, reset for next day                   |
+| Weekly Training Planner | 12:00 PM Sun    | Plan next week's training based on recovery and calendar   |
+| MCP Health Check        | 6:00 AM Mon     | Validate OAuth tokens for Calendar and Gmail               |
+| Stale Project Detector  | 8:00 AM Sat     | Scan vault for projects untouched 30+ days                 |
+| Context Drift Detector  | 8:00 AM Sun     | Check ATLAS-Context.md for consistency                     |
+| Health Pattern Monitor  | 10:30 AM daily  | Oura trend analysis, alerts only when noteworthy           |
+| Oura Context Update     | 10:00 AM daily  | Backfill Oura data into workout logs                       |
+| Vault Index Refresh     | 2:15 AM daily   | Rebuilds `vault-index.json` and `vault-index.md`           |
+| Second Brain Librarian  | 7:45 AM Mon/Fri | Reviews recent notes, open loops, orphans, and stale notes |
+| Weekly Review           | 8:00 PM Sun     | Synthesize week's data into structured review              |
+| Medication Reminder     | 5 AM & 8 PM     | Config-driven medication reminders (reads `meds.json`)     |
+| Medication Config Sync  | 1:00 AM daily   | Syncs `meds.json` with vault `Medications.md`              |
 
 All times are in `America/Los_Angeles`. The dispatcher tracks last run times in `cron/state/last_runs.json` to prevent duplicate executions. Use `--run-now JOB_ID` to manually trigger a job.
 
@@ -354,6 +365,7 @@ Reusable skill definitions in `.claude/skills/` that Claude can invoke via the S
 | `log-workout`             | Parse freeform workout reports into structured vault logs              |
 | `log-cardio`              | Parse freeform cardio session reports into structured logs             |
 | `log-medication`          | Parse medication reports and log doses with validation                 |
+| `second-brain-librarian`  | Review note health, recent changes, open loops, and cleanup priorities |
 | `weekly-review`           | Synthesize week's data into structured review with trends and patterns |
 | `weekly-training-planner` | Recovery-aware training plan with calendar integration                 |
 

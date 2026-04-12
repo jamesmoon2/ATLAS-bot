@@ -100,7 +100,7 @@
       "model": "opus",
       "timeout_seconds": 180,
       "allowed_tools": ["Read", "Write", "Edit", "Glob", "Skill"],
-      "prompt": "Run the daily-summary skill for today.\n\nAfter writing the daily summary, review today's conversations and update {vault_path}/System/ATLAS-Context.md if any of the following occurred:\n\n1. **Corrections Log:** Any factual errors ATLAS made today → append to table\n2. **Active Threads:** Project status changes, new threads started, old threads completed → update section\n3. **Preferences Learned:** New interaction preferences expressed → append to section\n4. **Stable Facts:** Any new stable facts learned (weight change, new baseline, etc.) → update table\n5. **Health Baselines:** Changes to training, HRV, sleep patterns → update table\n\nOnly modify sections with actual changes. Do not rewrite unchanged sections.\nSkip this step if nothing changed today.",
+      "prompt": "Run the daily-summary skill for today.\n\nAfter writing the daily summary, review today's conversations and update {vault_path}/System/ATLAS-Context.md if any of the following occurred:\n\n1. **Corrections Log:** Any factual errors ATLAS made today \u2192 append to table\n2. **Active Threads:** Project status changes, new threads started, old threads completed \u2192 update section\n3. **Preferences Learned:** New interaction preferences expressed \u2192 append to section\n4. **Stable Facts:** Any new stable facts learned (weight change, new baseline, etc.) \u2192 update table\n5. **Health Baselines:** Changes to training, HRV, sleep patterns \u2192 update table\n\nOnly modify sections with actual changes. Do not rewrite unchanged sections.\nSkip this step if nothing changed today.",
       "notify": {
         "type": "webhook",
         "url_env": "DISCORD_WEBHOOK_URL",
@@ -118,6 +118,17 @@
         "type": "webhook",
         "url_env": "DISCORD_WEBHOOK_URL",
         "username": "ATLAS Session Archive"
+      }
+    },
+    {
+      "id": "vault_index_refresh",
+      "name": "Vault Index Refresh",
+      "schedule": "15 2 * * *",
+      "timezone": "America/Los_Angeles",
+      "enabled": true,
+      "command": "python3 {bot_dir}/cron/vault_index.py",
+      "notify": {
+        "type": "silent"
       }
     },
     {
@@ -156,7 +167,7 @@
       "model": "haiku",
       "timeout_seconds": 60,
       "allowed_tools": ["Read", "Write"],
-      "prompt": "Compare the medication vault file against the bot's operational config and update the config if they've drifted.\n\n**Current Time:** {current_datetime}\n\n## Instructions\n\n1. Read `{vault_path}/Areas/Health/Medications.md` — this is the source of truth for medication names, doses, schedules, and protocols.\n2. Read `{bot_dir}/meds.json` — this is the operational config used by the bot for reminders, logging, and briefings.\n3. Compare them. Check for:\n   - New medications in the vault not in the config\n   - Dose changes (e.g., 2mg → 4mg)\n   - Schedule changes (e.g., different days/times)\n   - Discontinued medications (in config but removed from vault)\n4. If they match: output `NO_ALERT`\n5. If they differ: update `{bot_dir}/meds.json` to match the vault. Preserve the JSON schema (id, name, display_name, location, vault_table_marker, entry_format, schedule). Output a summary of what changed.",
+      "prompt": "Compare the medication vault file against the bot's operational config and update the config if they've drifted.\n\n**Current Time:** {current_datetime}\n\n## Instructions\n\n1. Read `{vault_path}/Areas/Health/Medications.md` \u2014 this is the source of truth for medication names, doses, schedules, and protocols.\n2. Read `{bot_dir}/meds.json` \u2014 this is the operational config used by the bot for reminders, logging, and briefings.\n3. Compare them. Check for:\n   - New medications in the vault not in the config\n   - Dose changes (e.g., 2mg \u2192 4mg)\n   - Schedule changes (e.g., different days/times)\n   - Discontinued medications (in config but removed from vault)\n4. If they match: output `NO_ALERT`\n5. If they differ: update `{bot_dir}/meds.json` to match the vault. Preserve the JSON schema (id, name, display_name, location, vault_table_marker, entry_format, schedule). Output a summary of what changed.",
       "notify": {
         "type": "webhook",
         "url_env": "DISCORD_WEBHOOK_URL",
@@ -203,6 +214,22 @@
         "url_env": "DISCORD_WEBHOOK_URL",
         "username": "ATLAS Health Monitor",
         "suppress_if_contains": "NO_ALERT"
+      }
+    },
+    {
+      "id": "librarian_digest",
+      "name": "Second Brain Librarian",
+      "schedule": "45 7 * * 1,5",
+      "timezone": "America/Los_Angeles",
+      "enabled": true,
+      "model": "sonnet",
+      "timeout_seconds": 180,
+      "allowed_tools": ["Read", "Glob", "Skill"],
+      "prompt": "Run the second-brain-librarian skill using the latest vault index and any recent notes needed for context.\n\n**Current Time:** {current_datetime}",
+      "notify": {
+        "type": "webhook",
+        "url_env": "DISCORD_WEBHOOK_URL",
+        "username": "ATLAS Librarian"
       }
     },
     {
