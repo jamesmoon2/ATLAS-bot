@@ -4,7 +4,8 @@ Monitor health metrics for concerning patterns and alert only when action is nee
 
 ## Instructions
 
-1. **Fetch Today's Data**
+1. **Fetch Today's Data** — Use the `**Current Time:**` value provided in the prompt as the
+   authoritative reference for what counts as "today"
 
    - Use `mcp__oura__get_daily_sleep` for last night's sleep
    - Use `mcp__oura__get_daily_readiness` for this morning's readiness
@@ -65,3 +66,7 @@ Monitor health metrics for concerning patterns and alert only when action is nee
 **Alert:**
 
 - Sleep 52, Readiness 45, HRV 18 (second consecutive day) → Alert with recovery recommendation
+
+## Notes
+
+- This is an unattended scheduled job: do not ask the user follow-up questions

@@ -19,7 +19,7 @@ Plan and schedule the upcoming training week based on recovery data and program 
 
 4. **Check Calendar**
 
-   - Use `mcp__google-calendar__list-events` for the upcoming week
+   - Use the Google Calendar events search/list tool available in the active provider for the upcoming week
    - Identify conflicts or busy days
 
 5. **Generate Training Plan**
@@ -29,7 +29,7 @@ Plan and schedule the upcoming training week based on recovery data and program 
    - Account for calendar conflicts
 
 6. **Create/Update Calendar Events**
-   - Use `mcp__google-calendar__create-event` for each workout
+   - Use the Google Calendar event creation tool available in the active provider for each workout
    - Include workout details in event description
    - Use the Google Calendar event summary `Workout: [Type]`
    - Use `timezone_str` / event timezone `America/Los_Angeles` for every created workout event
@@ -92,3 +92,4 @@ _Generated: [timestamp]_
 - Saturday is **Mobility, Core & Rehab**, not a rest day
 - Week 4 is always deload (-30% volume)
 - Sunday is the default rest day
+- This is an unattended scheduled job: do not ask the user follow-up questions

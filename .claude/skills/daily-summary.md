@@ -4,7 +4,8 @@ Generate an end-of-day summary of activities, health metrics, and session contex
 
 ## Instructions
 
-1. **Get Current Date** — Determine today's date for the summary
+1. **Get Current Date** — Use the `**Current Time:**` value provided in the prompt as the
+   authoritative reference for the summary date
 
 2. **Fetch Health Data**
 
@@ -81,6 +82,7 @@ _Generated: [timestamp]_
 
 ## Notes
 
-- Write summary to `/home/jmooney/vault/Daily/[YYYY-MM-DD]-atlas-summary.md`
+- Write summary to `/home/jmooney/vault/Daily/[YYYY-MM-DD].md`
 - Keep health snapshot concise — key metrics only
 - Unresolved section helps maintain continuity across sessions
+- This is an unattended scheduled job: do not ask the user follow-up questions

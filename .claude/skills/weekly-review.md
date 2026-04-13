@@ -4,7 +4,8 @@ Generate a comprehensive weekly review of training, health, and progress.
 
 ## Instructions
 
-1. **Determine Date Range** — Last 7 days ending today
+1. **Determine Date Range** — Use the `**Current Time:**` value provided in the prompt as the
+   authoritative reference, then review the last 7 days ending on that date
 
 2. **Fetch Health Data for the Week**
 
@@ -80,3 +81,4 @@ _Generated: [timestamp]_
 - Calculate averages and trends from the data
 - Be specific about what went well and what needs adjustment
 - Connect training load to recovery metrics
+- This is an unattended scheduled job: do not ask the user follow-up questions

@@ -62,3 +62,4 @@ Use the vault index to keep ATLAS acting like a second-brain librarian instead o
 - highlight only the highest-leverage items
 - distinguish urgent from merely useful
 - avoid repeating the raw index unless it adds interpretation
+- This is an unattended scheduled job: do not ask the user follow-up questions

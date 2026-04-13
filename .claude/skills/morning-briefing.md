@@ -4,7 +4,8 @@ Generate a morning briefing for James with weather, schedule, training, medicati
 
 ## Instructions
 
-1. **Get Current Time** — Use `mcp__google-calendar__get-current-time` to get accurate date/time
+1. **Get Current Time** — Use the `**Current Time:**` value provided in the prompt as the
+   authoritative reference for date/time
 
 2. **Weather** — Fetch forecast for Mountlake Terrace, WA (lat: 47.7923, lon: -122.3076):
 
@@ -14,7 +15,8 @@ Generate a morning briefing for James with weather, schedule, training, medicati
 
 3. **Schedule** — Fetch today's calendar events:
 
-   - Use `mcp__google-calendar__list-events` for primary calendar
+   - Use the Google Calendar events search/list tool available in the active provider for the
+     primary calendar
    - Time range: today 00:00 to 23:59
    - List events with times
 
@@ -82,3 +84,7 @@ Generate a morning briefing for James with weather, schedule, training, medicati
 
 [2-3 sentences synthesizing all data into actionable guidance]
 ```
+
+## Notes
+
+- This is an unattended scheduled job: do not ask the user follow-up questions

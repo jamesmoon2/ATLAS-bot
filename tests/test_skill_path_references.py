@@ -43,3 +43,10 @@ def test_training_and_vault_skills_use_explicit_paths():
         text = (SKILLS_DIR / filename).read_text(encoding="utf-8")
         for required_path in required_paths:
             assert required_path in text, f"{filename} is missing {required_path}"
+
+
+def test_daily_summary_skill_targets_plain_daily_note_filename():
+    text = (SKILLS_DIR / "daily-summary.md").read_text(encoding="utf-8")
+
+    assert "/home/jmooney/vault/Daily/[YYYY-MM-DD].md" in text
+    assert "-atlas-summary.md" not in text
