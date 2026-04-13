@@ -1,4 +1,4 @@
-"""ATLAS Bot - Discord bot wrapping Claude Code CLI."""
+"""ATLAS Bot - Discord bot wrapping the configured agent harness."""
 
 import asyncio
 import json
@@ -15,6 +15,13 @@ from typing import Any
 import discord
 from dotenv import load_dotenv
 
+from agent_runner import (
+    get_agent_provider,
+    get_user_selectable_models,
+    prepare_session_dir,
+    resolve_model_for_provider,
+    run_channel_message,
+)
 from med_config import find_med_by_content
 
 load_dotenv()
@@ -32,10 +39,10 @@ SYSTEM_PROMPT_PATH = os.getenv("SYSTEM_PROMPT_PATH", f"{VAULT_PATH}/System/claud
 CONTEXT_PATH = os.getenv("CONTEXT_PATH", f"{VAULT_PATH}/System/ATLAS-Context.md")
 MAX_RESPONSE_LENGTH = 1900
 
-# Supported media types for Claude Code Read tool (images + PDFs)
+# Supported media types for agent attachment handling (images + PDFs)
 SUPPORTED_MEDIA = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".pdf"}
 
-# Per-channel concurrency locks to prevent simultaneous Claude processes
+# Per-channel concurrency locks to prevent simultaneous agent runs
 channel_locks: dict[int, asyncio.Lock] = {}
 
 
@@ -104,7 +111,7 @@ def get_reaction_timestamp() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-# Claude settings for each channel session (built dynamically from env vars)
+# Session settings for each channel session (built dynamically from env vars)
 CHANNEL_SETTINGS: dict[str, Any] = {
     "hooks": {
         "SessionStart": [
@@ -205,31 +212,14 @@ CHANNEL_PERMISSIONS: dict[str, Any] = {
 def ensure_channel_session(channel_id: int) -> str:
     """Create and configure a session directory for a channel."""
     channel_dir = os.path.join(SESSIONS_DIR, str(channel_id))
-    claude_dir = os.path.join(channel_dir, ".claude")
-
-    os.makedirs(claude_dir, exist_ok=True)
-
-    # Write settings.json (hooks) - always overwrite to pick up code changes
-    settings_path = os.path.join(claude_dir, "settings.json")
-    _atomic_write_json(settings_path, CHANNEL_SETTINGS)
-
-    # Write settings.local.json (permissions) - always overwrite to pick up code changes
-    local_settings_path = os.path.join(claude_dir, "settings.local.json")
-    _atomic_write_json(local_settings_path, CHANNEL_PERMISSIONS)
-
-    # Point channel sessions at the repo-local skills so Discord sees checked-in updates.
-    skills_symlink = os.path.join(claude_dir, "skills")
-    skills_target = os.path.join(BOT_DIR, ".claude", "skills")
-    if os.path.isdir(skills_target):
-        desired_target = os.path.realpath(skills_target)
-        if os.path.islink(skills_symlink):
-            current_target = os.path.realpath(skills_symlink)
-            if current_target != desired_target:
-                os.unlink(skills_symlink)
-                os.symlink(skills_target, skills_symlink)
-        elif not os.path.exists(skills_symlink):
-            os.symlink(skills_target, skills_symlink)
-
+    prepare_session_dir(
+        channel_dir,
+        bot_dir=BOT_DIR,
+        system_prompt_path=SYSTEM_PROMPT_PATH,
+        context_path=CONTEXT_PATH,
+        channel_settings=CHANNEL_SETTINGS,
+        channel_permissions=CHANNEL_PERMISSIONS,
+    )
     return channel_dir
 
 
@@ -288,7 +278,7 @@ async def download_attachments(channel_id: int, attachments: list) -> list[str]:
 
 
 def build_prompt_with_files(content: str, file_paths: list[str]) -> str:
-    """Build prompt with file references for Claude to read."""
+    """Build a provider-neutral prompt with file references."""
     if not file_paths:
         return content
 
@@ -300,7 +290,7 @@ def build_prompt_with_files(content: str, file_paths: list[str]) -> str:
 
 
 def build_librarian_prompt(command: str, args: str) -> str:
-    """Build a librarian-focused Claude prompt for note recall and review workflows."""
+    """Build a librarian-focused prompt for note recall and review workflows."""
     index_path = os.path.join(VAULT_PATH, "System", "vault-index.json")
     markdown_index_path = os.path.join(VAULT_PATH, "System", "vault-index.md")
     query = args.strip()
@@ -351,8 +341,8 @@ def get_channel_model(channel_id: int) -> str:
     model_file = os.path.join(channel_dir, "model.txt")
     if os.path.exists(model_file):
         with open(model_file) as f:
-            return f.read().strip()
-    return "opus"  # default
+            return resolve_model_for_provider(f.read().strip())
+    return resolve_model_for_provider("opus")
 
 
 def set_channel_model(channel_id: int, model: str) -> None:
@@ -363,66 +353,33 @@ def set_channel_model(channel_id: int, model: str) -> None:
 
 
 async def run_claude(channel_id: int, message_content: str) -> str:
-    """Run Claude with session continuity for this channel.
+    """Run the active provider with session continuity for this channel.
 
     Returns:
         str: response_text
     """
-    process: asyncio.subprocess.Process | None = None
+    return await run_agent(channel_id, message_content)
+
+
+async def run_agent(
+    channel_id: int, message_content: str, attachment_paths: list[str] | None = None
+) -> str:
+    """Run the configured agent provider for this channel."""
     try:
         channel_dir = ensure_channel_session(channel_id)
         model = get_channel_model(channel_id)
-
-        # Tools allowed for vault file operations
-        allowed_tools = "Read,Write,Edit,Glob,Grep,Bash"
-
-        process = await asyncio.create_subprocess_exec(
-            "claude",
-            "--model",
-            model,
-            "--continue",
-            "--output-format",
-            "json",
-            "--allowedTools",
-            allowed_tools,
-            "-p",
-            message_content,
-            cwd=channel_dir,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            env={k: v for k, v in os.environ.items() if k != "CLAUDECODE"},
+        return await run_channel_message(
+            channel_id=channel_id,
+            prompt=message_content,
+            attachment_paths=attachment_paths or [],
+            channel_dir=channel_dir,
+            model=model,
+            bot_dir=BOT_DIR,
+            vault_path=VAULT_PATH,
+            system_prompt_path=SYSTEM_PROMPT_PATH,
+            context_path=CONTEXT_PATH,
+            channel_settings=CHANNEL_SETTINGS,
         )
-
-        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=600)
-
-        if process.returncode != 0:
-            return _format_process_error(
-                stdout,
-                stderr,
-                fallback=f"Claude exited with status {process.returncode}.",
-            )
-
-        # Parse JSON response
-        try:
-            data = json.loads(stdout.decode())
-            response = data.get("result", "")
-            print(f"  modelUsage: {data.get('modelUsage', 'NOT FOUND')}")
-
-            if not response and stderr:
-                response = f"Error: {stderr.decode().strip()}"
-
-            return response if response else "No response from Claude."
-        except json.JSONDecodeError:
-            # Fallback if JSON parsing fails
-            response = stdout.decode().strip()
-            if not response and stderr:
-                response = f"Error: {stderr.decode().strip()}"
-            return response if response else "No response from Claude."
-
-    except asyncio.TimeoutError:
-        if process is not None:
-            await _kill_process(process)
-        return "Request timed out after 10 minutes."
     except Exception as e:
         return f"Error: {str(e)}"
 
@@ -466,11 +423,13 @@ async def on_message(message):
 
     # Handle help command
     if content.lower() in ("!help", "help"):
+        available_models = ", ".join(get_user_selectable_models())
+        current_provider = get_agent_provider()
         help_text = (
             "**ATLAS Commands**\n\n"
             "**!help** - Show this message\n"
             "**!model** - Show current model\n"
-            "**!model sonnet|opus** - Switch model\n"
+            f"**!model <model>** - Switch model (provider: {current_provider}; available: {available_models})\n"
             "**!recall <query>** - Search your vault like a librarian\n"
             "**!recent-notes** - Summarize recently updated notes\n"
             "**!open-loops** - Review unresolved tasks and waiting states\n"
@@ -485,19 +444,23 @@ async def on_message(message):
     # Handle model command
     if content.lower().startswith("!model"):
         parts = content.split()
+        available_models = get_user_selectable_models()
         if len(parts) == 1:
             # Show current model
             current = get_channel_model(message.channel.id)
-            await message.channel.send(f"Current model: {current}")
+            await message.channel.send(
+                f"Current model: {current} (provider: {get_agent_provider()})"
+            )
             return
         elif len(parts) == 2:
             model = parts[1].lower()
-            if model in ("sonnet", "opus"):
+            if model in available_models:
                 set_channel_model(message.channel.id, model)
                 await message.channel.send(f"Switched to {model}.")
                 return
             else:
-                await message.channel.send("Invalid model. Use: !model sonnet or !model opus")
+                valid_models = ", ".join(available_models)
+                await message.channel.send(f"Invalid model. Available now: {valid_models}")
                 return
 
     librarian_commands = {
@@ -523,7 +486,7 @@ async def on_message(message):
 
             async with message.channel.typing():
                 async with lock:
-                    response = await run_claude(message.channel.id, prompt)
+                    response = await run_agent(message.channel.id, prompt)
 
             if len(response) <= MAX_RESPONSE_LENGTH:
                 await message.channel.send(response)
@@ -559,7 +522,7 @@ async def on_message(message):
 
     async with message.channel.typing():
         async with lock:
-            response = await run_claude(message.channel.id, prompt)
+            response = await run_agent(message.channel.id, prompt, downloaded_files)
 
     print(f"  Response length: {len(response)}")
 

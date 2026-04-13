@@ -3,7 +3,7 @@
 ATLAS Cron Job Dispatcher
 
 Runs every minute via cron, checks jobs.json for due jobs, and executes them
-via Claude Code CLI. Supports webhook notifications or silent logging.
+via the configured agent harness. Supports webhook notifications or silent logging.
 
 Usage:
     python dispatcher.py                    # Normal mode - run due jobs
@@ -23,6 +23,8 @@ from zoneinfo import ZoneInfo
 import aiohttp
 from croniter import croniter
 from dotenv import load_dotenv
+
+from agent_runner import run_job_prompt
 
 # Paths
 BOT_DIR = Path(__file__).parent.parent
@@ -155,11 +157,9 @@ async def run_shell_command(job: dict) -> tuple[str, bool]:
 
 
 async def run_claude(job: dict) -> tuple[str, bool]:
-    """Execute Claude CLI with job prompt. Returns (output, success)."""
-    allowed_tools = ",".join(job.get("allowed_tools", ["Read"]))
+    """Execute the active agent CLI with a job prompt. Returns (output, success)."""
     timeout = job.get("timeout_seconds", 180)
     model = job.get("model", "opus")
-    process: asyncio.subprocess.Process | None = None
 
     # Inject template variables into prompt
     tz = ZoneInfo(job.get("timezone", "America/Los_Angeles"))
@@ -172,49 +172,14 @@ async def run_claude(job: dict) -> tuple[str, bool]:
         .replace("{bot_dir}", str(BOT_DIR))
     )
 
-    try:
-        process = await asyncio.create_subprocess_exec(
-            "claude",
-            "--print",
-            "--model",
-            model,
-            "--allowedTools",
-            allowed_tools,
-            "-p",
-            prompt,
-            cwd=str(BOT_DIR),
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-            env={
-                **{k: v for k, v in os.environ.items() if k != "CLAUDECODE"},
-                "ANTHROPIC_DISABLE_PROMPT_CACHING": "1",
-            },
-        )
-
-        stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout)
-        output = stdout.decode().strip()
-        error_output = stderr.decode().strip()
-
-        if process.returncode != 0:
-            return (
-                _combine_process_output(stdout, stderr)
-                or f"Claude exited with status {process.returncode}.",
-                False,
-            )
-
-        if not output:
-            if error_output:
-                return f"Error (stderr): {error_output}", False
-            return "No response generated (empty stdout, no stderr).", False
-
-        return output, True
-
-    except asyncio.TimeoutError:
-        if process is not None:
-            await _kill_process(process)
-        return f"Job timed out after {timeout} seconds.", False
-    except Exception as e:
-        return f"Error: {str(e)}", False
+    return await run_job_prompt(
+        prompt=prompt,
+        model=model,
+        allowed_tools=job.get("allowed_tools", ["Read"]),
+        timeout=timeout,
+        bot_dir=str(BOT_DIR),
+        vault_path=vault_path,
+    )
 
 
 async def send_webhook(content: str, notify_config: dict) -> bool:

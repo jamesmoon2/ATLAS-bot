@@ -142,15 +142,15 @@ class TestClaudeInvocation:
     """Normal messages invoke run_claude and handle responses."""
 
     @pytest.mark.asyncio
-    @patch("bot.run_claude", return_value="Hello!")
-    async def test_short_response(self, mock_claude):
+    @patch("bot.run_agent", return_value="Hello!")
+    async def test_short_response(self, mock_agent):
         msg = _make_message("say hello")
         await bot.on_message(msg)
         msg.channel.send.assert_called_once_with("Hello!")
 
     @pytest.mark.asyncio
-    @patch("bot.run_claude", return_value="x" * 3000)
-    async def test_long_response_chunked(self, mock_claude):
+    @patch("bot.run_agent", return_value="x" * 3000)
+    async def test_long_response_chunked(self, mock_agent):
         msg = _make_message("write essay")
         await bot.on_message(msg)
         assert msg.channel.send.call_count >= 2
@@ -163,8 +163,8 @@ class TestClaudeInvocation:
         assert "what do you need" in sent.lower()
 
     @pytest.mark.asyncio
-    @patch("bot.run_claude", return_value="busy response")
-    async def test_lock_busy_message(self, mock_claude):
+    @patch("bot.run_agent", return_value="busy response")
+    async def test_lock_busy_message(self, mock_agent):
         """When lock is held, user gets a 'processing' message."""
         msg = _make_message("hello", channel_id=300)
 

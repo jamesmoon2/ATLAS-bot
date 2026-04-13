@@ -1,0 +1,45 @@
+"""Regression checks for explicit ATLAS skill path references."""
+
+from __future__ import annotations
+
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+SKILLS_DIR = ROOT / ".claude" / "skills"
+
+
+def test_no_skill_contains_unresolved_vault_path_placeholder():
+    for skill_path in SKILLS_DIR.glob("*.md"):
+        text = skill_path.read_text(encoding="utf-8")
+        assert "{vault_path}" not in text, f"{skill_path.name} still contains {{vault_path}}"
+
+
+def test_training_and_vault_skills_use_explicit_paths():
+    expectations = {
+        "weekly-review.md": [
+            "/home/jmooney/vault/Areas/Health/Training-State.md",
+            "/home/jmooney/vault/Areas/Health/Workout-Logs/",
+            "/home/jmooney/vault/Areas/Health/Medications.md",
+            "/home/jmooney/vault/Daily/",
+        ],
+        "log-workout.md": [
+            "/home/jmooney/vault/Areas/Health/Training-State.md",
+            "/home/jmooney/vault/Areas/Health/Workout-Logs/",
+        ],
+        "log-cardio.md": [
+            "/home/jmooney/vault/Areas/Health/Training-State.md",
+            "/home/jmooney/vault/Areas/Health/Workout-Logs/",
+        ],
+        "log-medication.md": [
+            "/home/jmooney/vault/Areas/Health/Medications.md",
+        ],
+        "second-brain-librarian.md": [
+            "/home/jmooney/vault/System/vault-index.json",
+            "/home/jmooney/vault/System/vault-index.md",
+        ],
+    }
+
+    for filename, required_paths in expectations.items():
+        text = (SKILLS_DIR / filename).read_text(encoding="utf-8")
+        for required_path in required_paths:
+            assert required_path in text, f"{filename} is missing {required_path}"

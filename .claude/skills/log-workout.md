@@ -1,6 +1,6 @@
 # Log Workout Skill
 
-Log a completed workout with Garmin data and update Training-State.md.
+Log a completed workout with Garmin data and update `/home/jmooney/vault/Areas/Health/Training-State.md`.
 
 ## Instructions
 
@@ -12,7 +12,7 @@ Log a completed workout with Garmin data and update Training-State.md.
    - Use `mcp__garmin__get_activity` with the activity_id for full details
    - Extract: duration, avg HR, max HR, calories, training effect, training load, body battery impact
 
-3. **Read Training-State.md** — Get the scheduled workout details:
+3. **Read `/home/jmooney/vault/Areas/Health/Training-State.md`** — Get the scheduled workout details:
 
    - What exercises were planned
    - Target sets/reps/weights
@@ -20,7 +20,7 @@ Log a completed workout with Garmin data and update Training-State.md.
 
 4. **Create Workout Log** at `/home/jmooney/vault/Areas/Health/Workout-Logs/[YYYY-MM-DD].md`
 
-5. **Update Training-State.md** — Mark the session complete with ✅ and date
+5. **Update `/home/jmooney/vault/Areas/Health/Training-State.md`** — Mark the session complete with ✅ and date
 
 ## Workout Log Format
 
@@ -76,4 +76,4 @@ _Logged by ATLAS_
 
 - Always pull Garmin data — don't rely on user-reported metrics alone
 - If user provides specific notes (RPE, exercise modifications), include them
-- Update Training-State.md checklist after creating the log
+- Update `/home/jmooney/vault/Areas/Health/Training-State.md` checklist after creating the log

@@ -20,7 +20,7 @@ if [ ! -f "${STATE_FILE}" ]; then
     echo '{"context_drift": {"last_run": null}}' > "${STATE_FILE}"
 fi
 
-# Use Claude Code to analyze drift
+# Use the configured agent harness to analyze drift
 cd "${SESSION_DIR}"
 
 DRIFT_PROMPT="Analyze context drift between stated decisions and actual execution.
@@ -64,8 +64,12 @@ All recent decisions align with execution. No drift detected.\"
 
 Be precise. Only flag meaningful patterns, not day-to-day variance."
 
-# Run Claude Code with timeout
-timeout 240s claude --output-format json -p "${DRIFT_PROMPT}" > /tmp/context_drift_$(date +%Y%m%d).json 2>&1 || {
+# Run the configured agent harness with timeout
+timeout 240s python3 "${BOT_DIR}/agent_exec.py" \
+    --session-dir "${SESSION_DIR}" \
+    --prompt "${DRIFT_PROMPT}" \
+    --timeout 240 \
+    > /tmp/context_drift_$(date +%Y%m%d).json 2>&1 || {
     echo "Error: Context drift analysis failed or timed out"
     exit 1
 }

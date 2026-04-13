@@ -19,7 +19,7 @@ if [ ! -f "${STATE_FILE}" ]; then
     echo '{"task_triage": {"last_run": null, "flagged_tasks": []}}' > "${STATE_FILE}"
 fi
 
-# Use Claude Code to analyze tasks
+# Use the configured agent harness to analyze tasks
 cd "${SESSION_DIR}"
 
 TRIAGE_PROMPT="Analyze the task list and generate a triage report.
@@ -65,8 +65,12 @@ All tasks current. No overdue items, blockers, or quick wins flagged.\"
 
 Be concise. Only include sections with content."
 
-# Run Claude Code with timeout
-timeout 180s claude --output-format json -p "${TRIAGE_PROMPT}" > /tmp/task_triage_$(date +%Y%m%d).json 2>&1 || {
+# Run the configured agent harness with timeout
+timeout 180s python3 "${BOT_DIR}/agent_exec.py" \
+    --session-dir "${SESSION_DIR}" \
+    --prompt "${TRIAGE_PROMPT}" \
+    --timeout 180 \
+    > /tmp/task_triage_$(date +%Y%m%d).json 2>&1 || {
     echo "Error: Task triage failed or timed out"
     exit 1
 }

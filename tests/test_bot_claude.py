@@ -1,8 +1,6 @@
-"""Tests for bot.run_claude() subprocess invocation."""
+"""Tests for bot.run_claude()/run_agent() wrapper behavior."""
 
-import asyncio
-import json
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -10,113 +8,50 @@ import bot
 
 
 class TestRunClaude:
-    """run_claude() invokes Claude CLI and parses JSON output."""
+    """run_claude() delegates to the shared provider runner."""
 
     @pytest.fixture(autouse=True)
-    def _patch(self, sessions_dir, monkeypatch):
+    def _patch(self, sessions_dir, monkeypatch, tmp_path):
+        monkeypatch.setenv("ATLAS_AGENT_PROVIDER", "claude")
         monkeypatch.setattr(bot, "SESSIONS_DIR", str(sessions_dir))
+        bot_dir = tmp_path / "bot"
+        (bot_dir / ".claude" / "skills").mkdir(parents=True)
+        monkeypatch.setattr(bot, "BOT_DIR", str(bot_dir))
         self.sessions_dir = sessions_dir
 
-    def _mock_process(self, stdout=b"", stderr=b"", returncode=0):
-        proc = MagicMock()
-        proc.returncode = returncode
-        proc.communicate = AsyncMock(return_value=(stdout, stderr))
-        proc.kill = MagicMock()
-        return proc
-
     @pytest.mark.asyncio
-    @patch("bot.asyncio.create_subprocess_exec")
-    async def test_json_response_parsed(self, mock_exec):
-        data = {"result": "Hello!", "modelUsage": {}}
-        proc = self._mock_process(stdout=json.dumps(data).encode())
-        mock_exec.return_value = proc
-
+    @patch("bot.run_channel_message", return_value="Hello!")
+    async def test_returns_runner_response(self, mock_runner):
         result = await bot.run_claude(100, "hi")
         assert result == "Hello!"
+        mock_runner.assert_called_once()
 
     @pytest.mark.asyncio
-    @patch("bot.asyncio.create_subprocess_exec")
-    async def test_fallback_on_json_error(self, mock_exec):
-        proc = self._mock_process(stdout=b"plain text response")
-        mock_exec.return_value = proc
-
-        result = await bot.run_claude(100, "hi")
-        assert result == "plain text response"
-
-    @pytest.mark.asyncio
-    @patch("bot.asyncio.create_subprocess_exec")
-    async def test_empty_result_with_stderr(self, mock_exec):
-        data = {"result": ""}
-        proc = self._mock_process()
-        mock_exec.return_value = proc
-        proc.communicate.return_value = (json.dumps(data).encode(), b"some error")
-
-        result = await bot.run_claude(100, "hi")
-        assert "some error" in result
-
-    @pytest.mark.asyncio
-    @patch("bot.asyncio.create_subprocess_exec")
-    async def test_timeout_kills_process(self, mock_exec):
-        proc = self._mock_process()
-        proc.communicate = AsyncMock(side_effect=[asyncio.TimeoutError, (b"", b"")])
-        mock_exec.return_value = proc
-
-        result = await bot.run_claude(100, "hi")
-        assert "timed out" in result.lower()
-        proc.kill.assert_called_once()
-        proc.communicate.assert_awaited()
-
-    @pytest.mark.asyncio
-    @patch("bot.asyncio.create_subprocess_exec", side_effect=FileNotFoundError("claude"))
-    async def test_generic_exception(self, mock_exec):
+    @patch("bot.run_channel_message", side_effect=FileNotFoundError("claude"))
+    async def test_generic_exception(self, mock_runner):
         result = await bot.run_claude(100, "hi")
         assert "Error" in result
 
     @pytest.mark.asyncio
-    @patch("bot.asyncio.create_subprocess_exec")
-    async def test_correct_model_passed(self, mock_exec):
-        """Model from get_channel_model is passed to CLI."""
+    @patch("bot.run_channel_message", return_value="ok")
+    async def test_correct_model_passed(self, mock_runner):
         bot.set_channel_model(100, "sonnet")
-        data = {"result": "ok", "modelUsage": {}}
-        proc = self._mock_process(stdout=json.dumps(data).encode())
-        mock_exec.return_value = proc
 
         await bot.run_claude(100, "hi")
 
-        # Check the --model arg
-        call_args = mock_exec.call_args[0]
-        model_idx = list(call_args).index("--model")
-        assert call_args[model_idx + 1] == "sonnet"
+        assert mock_runner.call_args.kwargs["model"] == "sonnet"
 
     @pytest.mark.asyncio
-    @patch("bot.asyncio.create_subprocess_exec")
-    async def test_cwd_is_channel_session(self, mock_exec):
-        data = {"result": "ok", "modelUsage": {}}
-        proc = self._mock_process(stdout=json.dumps(data).encode())
-        mock_exec.return_value = proc
-
+    @patch("bot.run_channel_message", return_value="ok")
+    async def test_channel_dir_is_session_dir(self, mock_runner):
         await bot.run_claude(100, "hi")
 
-        call_kwargs = mock_exec.call_args[1]
-        assert str(100) in call_kwargs["cwd"]
+        channel_dir = mock_runner.call_args.kwargs["channel_dir"]
+        assert str(100) in channel_dir
 
     @pytest.mark.asyncio
-    @patch("bot.asyncio.create_subprocess_exec")
-    async def test_no_response_fallback(self, mock_exec):
-        data = {"result": ""}
-        proc = self._mock_process()
-        mock_exec.return_value = proc
-        proc.communicate.return_value = (json.dumps(data).encode(), b"")
+    @patch("bot.run_channel_message", return_value="ok")
+    async def test_defaults_to_empty_attachment_paths(self, mock_runner):
+        await bot.run_claude(100, "hi")
 
-        result = await bot.run_claude(100, "hi")
-        assert result == "No response from Claude."
-
-    @pytest.mark.asyncio
-    @patch("bot.asyncio.create_subprocess_exec")
-    async def test_nonzero_exit_uses_stderr(self, mock_exec):
-        proc = self._mock_process(stdout=b"partial output", stderr=b"fatal error", returncode=1)
-        mock_exec.return_value = proc
-
-        result = await bot.run_claude(100, "hi")
-
-        assert "fatal error" in result
+        assert mock_runner.call_args.kwargs["attachment_paths"] == []

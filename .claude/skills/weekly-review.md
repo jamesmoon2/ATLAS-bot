@@ -14,10 +14,10 @@ Generate a comprehensive weekly review of training, health, and progress.
 
 3. **Read Vault Files**
 
-   - Training-State.md for workout completion
-   - Workout-Logs/ for any logged sessions
-   - Medications.md for adherence
-   - Daily notes if they exist
+   - Read `/home/jmooney/vault/Areas/Health/Training-State.md` for workout completion
+   - Read `/home/jmooney/vault/Areas/Health/Workout-Logs/` for any logged sessions
+   - Read `/home/jmooney/vault/Areas/Health/Medications.md` for adherence
+   - Read relevant daily notes from `/home/jmooney/vault/Daily/` if they exist
 
 4. **Generate Weekly Review**
 

@@ -5,7 +5,7 @@
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 [![CI](https://github.com/jamesmoon2/ATLAS-bot/actions/workflows/ci.yml/badge.svg)](https://github.com/jamesmoon2/ATLAS-bot/actions/workflows/ci.yml)
 
-A Discord bot that wraps [Claude Code CLI](https://github.com/anthropics/claude-code) for conversational AI assistance. Chat with Claude directly in Discord with full access to your local filesystem, scheduled automation, and MCP integrations.
+A Discord bot that wraps a configurable agent harness for conversational AI assistance. ATLAS can run on [Claude Code CLI](https://github.com/anthropics/claude-code) or OpenAI Codex while keeping the same prompts, skills, hooks, scheduled automation, and Discord interaction model.
 
 ## Architecture
 
@@ -30,8 +30,8 @@ flowchart TB
         Scripts[Shell Scripts]
     end
 
-    subgraph CLI[Claude Code CLI]
-        Claude[claude CLI]
+    subgraph CLI[Agent Harness]
+        Claude[claude CLI or codex]
         Hooks[Session Hooks]
         Skills[.claude/skills/]
     end
@@ -82,7 +82,7 @@ sequenceDiagram
     B->>B: Check channel/mention
     B->>B: Load or create session
     B->>B: Download attachments (if any)
-    B->>C: claude --model opus --continue -p message
+    B->>C: active agent CLI with session continuity
 
     Note over C: Session hooks run on first message
     C->>F: Read system prompt + context
@@ -114,15 +114,16 @@ stateDiagram-v2
 ## Features
 
 | Feature                     | Description                                                                                    |
-| --------------------------- | ---------------------------------------------------------------------------------------------- |
+| --------------------------- | ---------------------------------------------------------------------------------------------- | ------ |
 | **Session Continuity**      | Maintains conversation context using `--continue` across messages                              |
-| **Channel Isolation**       | Each Discord channel gets its own Claude session and model preference                          |
+| **Channel Isolation**       | Each Discord channel gets its own agent session and model preference                           |
 | **Configurable Hooks**      | Three hook types: SessionStart, PreToolUse, PostToolUse                                        |
-| **Model Switching**         | Switch between opus and sonnet per channel (`!model opus\|sonnet`)                             |
-| **Attachment Support**      | Upload images and PDFs to Discord; Claude reads them via the Read tool                         |
+| **Provider Switching**      | Switch the harness globally with `ATLAS_AGENT_PROVIDER=claude                                  | codex` |
+| **Model Switching**         | Switch models per channel (`!model opus`, `!model sonnet`, `!model gpt-5.4`)                   |
+| **Attachment Support**      | Upload images and PDFs to Discord; the active harness reads them from the session directory    |
 | **Scheduled Automation**    | 12 cron jobs: briefings, reminders, archival, health checks, and more                          |
 | **MCP Integrations**        | Oura Ring, Google Calendar, Gmail, and Weather data via MCP servers                            |
-| **Claude Skills**           | 9 reusable skills for briefings, workout logging, training plans, health monitoring, reviews   |
+| **ATLAS Skills**            | Reusable skills for briefings, workout logging, training plans, health monitoring, and reviews |
 | **Second Brain Librarian**  | Vault indexing, note recall, open-loop review, orphan-note detection, and twice-weekly digests |
 | **Medication Tracking**     | Config-driven cron reminders (`meds.json`) with checkmark reaction logging to vault files      |
 | **Nightly Session Archive** | Sessions archived and reset daily to keep context fresh                                        |
@@ -132,7 +133,9 @@ stateDiagram-v2
 ## Requirements
 
 - Python 3.10+
-- [Claude Code CLI](https://github.com/anthropics/claude-code) installed and authenticated
+- One configured harness:
+  - [Claude Code CLI](https://github.com/anthropics/claude-code), or
+  - OpenAI Codex CLI
 - Discord Bot Token
 
 ## Quick Start
@@ -159,17 +162,30 @@ python bot.py
 
 ### Environment Variables
 
-| Variable              | Description                                        | Required |
-| --------------------- | -------------------------------------------------- | -------- |
-| `DISCORD_TOKEN`       | Discord bot token                                  | Yes      |
-| `VAULT_PATH`          | Path to your notes/vault directory                 | Yes      |
-| `SESSIONS_DIR`        | Where to store session data                        | No       |
-| `BOT_DIR`             | Bot installation directory                         | No       |
-| `SYSTEM_PROMPT_PATH`  | Path to system prompt file                         | No       |
-| `CONTEXT_PATH`        | Path to persistent context file (ATLAS-Context.md) | No       |
-| `TASKS_FILE_PATH`     | Path to tasks file for hook injection              | No       |
-| `DISCORD_CHANNEL_ID`  | Channel ID for `send_message.py` and cron jobs     | No       |
-| `DISCORD_WEBHOOK_URL` | Webhook URL for cron job notifications             | No       |
+| Variable                       | Description                                        | Required |
+| ------------------------------ | -------------------------------------------------- | -------- |
+| `DISCORD_TOKEN`                | Discord bot token                                  | Yes      |
+| `VAULT_PATH`                   | Path to your notes/vault directory                 | Yes      |
+| `SESSIONS_DIR`                 | Where to store session data                        | No       |
+| `BOT_DIR`                      | Bot installation directory                         | No       |
+| `SYSTEM_PROMPT_PATH`           | Path to system prompt file                         | No       |
+| `CONTEXT_PATH`                 | Path to persistent context file (ATLAS-Context.md) | No       |
+| `TASKS_FILE_PATH`              | Path to tasks file for hook injection              | No       |
+| `ATLAS_AGENT_PROVIDER`         | Active harness: `claude` or `codex`                | No       |
+| `ATLAS_CLAUDE_MODEL`           | Default Claude model for new channels              | No       |
+| `ATLAS_CODEX_MODEL`            | Default Codex model for new channels               | No       |
+| `ATLAS_CODEX_REASONING_EFFORT` | Codex reasoning effort (`low`..`xhigh`)            | No       |
+| `ATLAS_CODEX_HOME`             | Optional bot-specific Codex profile/home           | No       |
+| `DISCORD_CHANNEL_ID`           | Channel ID for `send_message.py` and cron jobs     | No       |
+| `DISCORD_WEBHOOK_URL`          | Webhook URL for cron job notifications             | No       |
+
+### Provider Switching
+
+- Default behavior remains Claude. Leave `ATLAS_AGENT_PROVIDER=claude` for the current setup.
+- Switch to Codex by setting `ATLAS_AGENT_PROVIDER=codex` and restarting the bot and cron service.
+- Fast rollback is the inverse: set `ATLAS_AGENT_PROVIDER=claude` and restart services.
+- If you want Codex isolated from your personal CLI state, set `ATLAS_CODEX_HOME` to a bot-specific directory.
+- A short operator guide lives in [PROVIDER_SWITCH_USER_GUIDE.md](./PROVIDER_SWITCH_USER_GUIDE.md).
 
 ### File Structure
 
@@ -205,7 +221,7 @@ atlas-bot/
 │   │   └── README.md
 │   └── credentials/          # OAuth credentials (gitignored)
 ├── .claude/
-│   └── skills/               # Reusable Claude skill definitions
+│   └── skills/               # Reusable ATLAS skill definitions
 │       ├── morning-briefing.md
 │       ├── daily-summary.md
 │       ├── health-pattern-monitor.md
@@ -223,8 +239,9 @@ atlas-bot/
 ├── sessions/                  # Per-channel session data (gitignored)
 │   └── {channel_id}/
 │       ├── .claude/
-│       │   ├── settings.json        # Hooks config
-│       │   └── settings.local.json  # Permissions
+│       │   ├── settings.json        # Claude session hooks config
+│       │   └── settings.local.json  # Claude permissions
+│       ├── AGENTS.md                # Generated Codex session instructions
 │       ├── attachments/             # Downloaded Discord attachments
 │       └── model.txt                # Channel model preference
 ├── logs/
@@ -251,7 +268,7 @@ flowchart LR
         G[workout_oura_data.sh]
     end
 
-    E --> H[Claude receives full context]
+    E --> H[Active harness receives full context]
     F -.->|google-calendar create/update| H
     G -.->|Write to Workout-Logs/| H
 ```

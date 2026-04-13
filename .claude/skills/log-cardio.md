@@ -24,7 +24,7 @@ Log a completed cardio session (Peloton, ruck, run) with Garmin data.
 
 4. **Create Workout Log** at `/home/jmooney/vault/Areas/Health/Workout-Logs/[YYYY-MM-DD].md`
 
-5. **Update Training-State.md** — Mark the cardio session complete
+5. **Update `/home/jmooney/vault/Areas/Health/Training-State.md`** — Mark the cardio session complete
 
 ## Cardio Log Format
 

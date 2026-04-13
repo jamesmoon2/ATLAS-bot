@@ -11,8 +11,8 @@ Use the vault index to keep ATLAS acting like a second-brain librarian instead o
 
 ## Primary Inputs
 
-1. Read `{vault_path}/System/vault-index.json` first
-2. Read `{vault_path}/System/vault-index.md` for a human-readable overview if useful
+1. Read `/home/jmooney/vault/System/vault-index.json` first
+2. Read `/home/jmooney/vault/System/vault-index.md` for a human-readable overview if useful
 3. Read any recent or relevant notes needed to confirm the index
 4. Use `Glob` only to locate note families if the index is insufficient
 

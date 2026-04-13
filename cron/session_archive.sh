@@ -25,6 +25,13 @@ else
     echo "No .claude directory found to archive"
 fi
 
+# 2b. Archive Codex session helper files if present
+for helper in AGENTS.md ATLAS-Calendar-Context.md ATLAS-Workout-Postwrite.md .atlas-codex-session-started; do
+    if [ -e "${SESSION_DIR}/${helper}" ]; then
+        cp -r "${SESSION_DIR}/${helper}" "${ARCHIVE_DIR}/"
+    fi
+done
+
 # 3. Archive Claude Code project directory
 CLAUDE_PROJECT_DIR=$(find ~/.claude/projects/ -path "*sessions-${CHANNEL_ID}*" -type d 2>/dev/null | head -1)
 if [ -n "${CLAUDE_PROJECT_DIR}" ] && [ -d "${CLAUDE_PROJECT_DIR}" ]; then
@@ -42,6 +49,12 @@ if [ -d "${SESSION_DIR}/.claude" ]; then
 else
     echo "No .claude directory to reset"
 fi
+
+# 5. Reset Codex session helper files
+rm -f "${SESSION_DIR}/AGENTS.md" \
+    "${SESSION_DIR}/ATLAS-Calendar-Context.md" \
+    "${SESSION_DIR}/ATLAS-Workout-Postwrite.md" \
+    "${SESSION_DIR}/.atlas-codex-session-started"
 
 echo "=== Archive complete: ${ARCHIVE_DIR} ==="
 echo "=== Session reset for next day ==="

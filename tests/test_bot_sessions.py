@@ -37,7 +37,15 @@ class TestEnsureChannelSession:
         monkeypatch.setattr(bot, "SESSIONS_DIR", str(sessions_dir))
         bot_dir = tmp_path / "bot"
         (bot_dir / ".claude" / "skills").mkdir(parents=True)
+        vault_dir = tmp_path / "vault" / "System"
+        vault_dir.mkdir(parents=True)
+        system_prompt = vault_dir / "claude.md"
+        context_file = vault_dir / "ATLAS-Context.md"
+        system_prompt.write_text("System prompt")
+        context_file.write_text("Persistent context")
         monkeypatch.setattr(bot, "BOT_DIR", str(bot_dir))
+        monkeypatch.setattr(bot, "SYSTEM_PROMPT_PATH", str(system_prompt))
+        monkeypatch.setattr(bot, "CONTEXT_PATH", str(context_file))
         self.sessions_dir = sessions_dir
         self.bot_dir = bot_dir
 
@@ -98,6 +106,20 @@ class TestEnsureChannelSession:
         assert os.path.realpath(skills_link) == os.path.realpath(
             self.bot_dir / ".claude" / "skills"
         )
+
+    def test_writes_codex_agents_file(self):
+        bot.ensure_channel_session(100)
+        agents_file = self.sessions_dir / "100" / "AGENTS.md"
+        assert agents_file.exists()
+        contents = agents_file.read_text()
+        assert "System prompt" in contents
+        assert "Persistent context" in contents
+
+    def test_writes_codex_workout_helper(self):
+        bot.ensure_channel_session(100)
+        helper_file = self.sessions_dir / "100" / "ATLAS-Workout-Postwrite.md"
+        assert helper_file.exists()
+        assert "workout log" in helper_file.read_text().lower()
 
 
 class TestResetChannelSession:

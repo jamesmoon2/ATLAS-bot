@@ -1,12 +1,12 @@
 # Log Medication Skill
 
-Log a medication dose to Medications.md.
+Log a medication dose to `/home/jmooney/vault/Areas/Health/Medications.md`.
 
 ## Instructions
 
 1. **Identify the Medication** — From user input, determine which medication was taken
 
-2. **Read Medications.md** — Find the appropriate dosing log table
+2. **Read `/home/jmooney/vault/Areas/Health/Medications.md`** — Find the appropriate dosing log table
 
 3. **Add Entry** — Append a new row to the dosing log with:
    - Date (YYYY-MM-DD format)

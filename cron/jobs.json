@@ -49,7 +49,7 @@
         "mcp__google-calendar__create-event",
         "mcp__google-calendar__delete-event"
       ],
-      "prompt": "Run the weekly-training-planner skill.",
+      "prompt": "Run the weekly-training-planner skill.\n\nRead `{vault_path}/Areas/Health/Training-State.md` as the source of truth for program state and read recent workout logs from `{vault_path}/Areas/Health/Workout-Logs/` before planning the week.\nUse the provided current time below as the authoritative reference for week detection and the upcoming date range.\n\n**Current Time:** {current_datetime}",
       "notify": {
         "type": "webhook",
         "url_env": "DISCORD_WEBHOOK_URL",

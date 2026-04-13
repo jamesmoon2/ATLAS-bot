@@ -40,13 +40,13 @@ def _make_message(content, channel_name="atlas", channel_id=100):
 
 class TestLibrarianCommands:
     @pytest.mark.asyncio
-    @patch("bot.run_claude", return_value="Recall result")
-    async def test_recall_uses_librarian_prompt(self, mock_claude):
+    @patch("bot.run_agent", return_value="Recall result")
+    async def test_recall_uses_librarian_prompt(self, mock_agent):
         msg = _make_message("!recall atlas roadmap")
 
         await bot.on_message(msg)
 
-        prompt = mock_claude.call_args[0][1]
+        prompt = mock_agent.call_args[0][1]
         assert "vault-index.json" in prompt
         assert "atlas roadmap" in prompt
         assert "second-brain librarian" in prompt.lower()
@@ -61,44 +61,44 @@ class TestLibrarianCommands:
         msg.channel.send.assert_called_once_with("Usage: !recall <query>")
 
     @pytest.mark.asyncio
-    @patch("bot.run_claude", return_value="Open loops")
-    async def test_open_loops_command(self, mock_claude):
+    @patch("bot.run_agent", return_value="Open loops")
+    async def test_open_loops_command(self, mock_agent):
         msg = _make_message("!open-loops")
 
         await bot.on_message(msg)
 
-        prompt = mock_claude.call_args[0][1]
+        prompt = mock_agent.call_args[0][1]
         assert "open loops" in prompt.lower()
         assert "vault-index.json" in prompt
 
     @pytest.mark.asyncio
-    @patch("bot.run_claude", return_value="Recent notes")
-    async def test_recent_notes_command(self, mock_claude):
+    @patch("bot.run_agent", return_value="Recent notes")
+    async def test_recent_notes_command(self, mock_agent):
         msg = _make_message("!recent-notes")
 
         await bot.on_message(msg)
 
-        prompt = mock_claude.call_args[0][1]
+        prompt = mock_agent.call_args[0][1]
         assert "recently updated notes" in prompt.lower()
 
     @pytest.mark.asyncio
-    @patch("bot.run_claude", return_value="Orphan notes")
-    async def test_orphan_notes_command(self, mock_claude):
+    @patch("bot.run_agent", return_value="Orphan notes")
+    async def test_orphan_notes_command(self, mock_agent):
         msg = _make_message("!orphan-notes")
 
         await bot.on_message(msg)
 
-        prompt = mock_claude.call_args[0][1]
+        prompt = mock_agent.call_args[0][1]
         assert "orphan notes" in prompt.lower()
 
     @pytest.mark.asyncio
-    @patch("bot.run_claude", return_value="Digest")
-    async def test_librarian_digest_command(self, mock_claude):
+    @patch("bot.run_agent", return_value="Digest")
+    async def test_librarian_digest_command(self, mock_agent):
         msg = _make_message("!librarian")
 
         await bot.on_message(msg)
 
-        prompt = mock_claude.call_args[0][1]
+        prompt = mock_agent.call_args[0][1]
         assert "compact librarian digest" in prompt.lower()
 
     @pytest.mark.asyncio

@@ -83,16 +83,11 @@ class TestRunShellCommand:
 
 
 class TestRunClaude:
-    """run_claude() invokes Claude CLI with proper flags."""
+    """run_claude() invokes the shared provider runner with expanded prompt data."""
 
     @pytest.mark.asyncio
-    @patch("cron.dispatcher.asyncio.create_subprocess_exec")
-    async def test_datetime_injection(self, mock_exec):
-        proc = MagicMock()
-        proc.returncode = 0
-        proc.communicate = AsyncMock(return_value=(b"response", b""))
-        mock_exec.return_value = proc
-
+    @patch("cron.dispatcher.run_job_prompt", return_value=("response", True))
+    async def test_datetime_injection(self, mock_run_job):
         job = {
             "prompt": "Time is {current_datetime}",
             "allowed_tools": ["Read"],
@@ -101,21 +96,15 @@ class TestRunClaude:
             "timezone": "America/Los_Angeles",
         }
         output, success = await dispatcher.run_claude(job)
-        assert success is True
 
-        # Verify {current_datetime} was replaced in the prompt arg
-        call_args = mock_exec.call_args[0]
-        prompt_arg = call_args[-1]  # last positional arg after -p
+        assert success is True
+        assert output == "response"
+        prompt_arg = mock_run_job.call_args.kwargs["prompt"]
         assert "{current_datetime}" not in prompt_arg
 
     @pytest.mark.asyncio
-    @patch("cron.dispatcher.asyncio.create_subprocess_exec")
-    async def test_model_flag(self, mock_exec):
-        proc = MagicMock()
-        proc.returncode = 0
-        proc.communicate = AsyncMock(return_value=(b"ok", b""))
-        mock_exec.return_value = proc
-
+    @patch("cron.dispatcher.run_job_prompt", return_value=("ok", True))
+    async def test_model_forwarded(self, mock_run_job):
         job = {
             "prompt": "test",
             "allowed_tools": ["Read"],
@@ -124,17 +113,12 @@ class TestRunClaude:
             "timezone": "UTC",
         }
         await dispatcher.run_claude(job)
-        call_args = mock_exec.call_args[0]
-        assert "haiku" in call_args
+
+        assert mock_run_job.call_args.kwargs["model"] == "haiku"
 
     @pytest.mark.asyncio
-    @patch("cron.dispatcher.asyncio.create_subprocess_exec")
-    async def test_tools_comma_separated(self, mock_exec):
-        proc = MagicMock()
-        proc.returncode = 0
-        proc.communicate = AsyncMock(return_value=(b"ok", b""))
-        mock_exec.return_value = proc
-
+    @patch("cron.dispatcher.run_job_prompt", return_value=("ok", True))
+    async def test_allowed_tools_forwarded(self, mock_run_job):
         job = {
             "prompt": "test",
             "allowed_tools": ["Read", "Write", "Glob"],
@@ -143,85 +127,8 @@ class TestRunClaude:
             "timezone": "UTC",
         }
         await dispatcher.run_claude(job)
-        call_args = mock_exec.call_args[0]
-        assert "Read,Write,Glob" in call_args
 
-    @pytest.mark.asyncio
-    @patch("cron.dispatcher.asyncio.create_subprocess_exec")
-    async def test_prompt_caching_disabled(self, mock_exec):
-        proc = MagicMock()
-        proc.returncode = 0
-        proc.communicate = AsyncMock(return_value=(b"ok", b""))
-        mock_exec.return_value = proc
-
-        job = {
-            "prompt": "test",
-            "allowed_tools": ["Read"],
-            "timeout_seconds": 60,
-            "model": "opus",
-            "timezone": "UTC",
-        }
-        await dispatcher.run_claude(job)
-        call_kwargs = mock_exec.call_args[1]
-        assert call_kwargs["env"]["ANTHROPIC_DISABLE_PROMPT_CACHING"] == "1"
-
-    @pytest.mark.asyncio
-    @patch("cron.dispatcher.asyncio.create_subprocess_exec")
-    async def test_timeout(self, mock_exec):
-        proc = MagicMock()
-        proc.kill = MagicMock()
-        proc.communicate = AsyncMock(side_effect=[asyncio.TimeoutError, (b"", b"")])
-        mock_exec.return_value = proc
-
-        job = {
-            "prompt": "test",
-            "allowed_tools": ["Read"],
-            "timeout_seconds": 1,
-            "model": "opus",
-            "timezone": "UTC",
-        }
-        output, success = await dispatcher.run_claude(job)
-        assert success is False
-        proc.kill.assert_called_once()
-
-    @pytest.mark.asyncio
-    @patch("cron.dispatcher.asyncio.create_subprocess_exec")
-    async def test_empty_stdout_with_stderr(self, mock_exec):
-        proc = MagicMock()
-        proc.returncode = 0
-        proc.communicate = AsyncMock(return_value=(b"", b"error details"))
-        mock_exec.return_value = proc
-
-        job = {
-            "prompt": "test",
-            "allowed_tools": ["Read"],
-            "timeout_seconds": 60,
-            "model": "opus",
-            "timezone": "UTC",
-        }
-        output, success = await dispatcher.run_claude(job)
-        assert success is False
-        assert "error details" in output
-
-    @pytest.mark.asyncio
-    @patch("cron.dispatcher.asyncio.create_subprocess_exec")
-    async def test_nonzero_exit_marks_failure(self, mock_exec):
-        proc = MagicMock()
-        proc.returncode = 1
-        proc.communicate = AsyncMock(return_value=(b"partial output", b"fatal error"))
-        mock_exec.return_value = proc
-
-        job = {
-            "prompt": "test",
-            "allowed_tools": ["Read"],
-            "timeout_seconds": 60,
-            "model": "opus",
-            "timezone": "UTC",
-        }
-        output, success = await dispatcher.run_claude(job)
-
-        assert success is False
-        assert "fatal error" in output
+        assert mock_run_job.call_args.kwargs["allowed_tools"] == ["Read", "Write", "Glob"]
 
 
 class TestExecuteJob:
