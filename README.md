@@ -31,7 +31,7 @@ flowchart TB
     end
 
     subgraph CLI[Agent Harness]
-        Claude[claude CLI or codex]
+        Agent[claude CLI or codex]
         Hooks[Session Hooks]
         Skills[.claude/skills/]
     end
@@ -50,18 +50,18 @@ flowchart TB
 
     User --> Channel
     Channel --> Bot
-    Bot --> Claude
+    Bot --> Agent
     Bot --> Sessions
-    Claude --> Vault
-    Claude --> Files
-    Claude --> MCP
-    Hooks --> Claude
-    Skills --> Claude
-    Claude --> Bot
+    Agent --> Vault
+    Agent --> Files
+    Agent --> MCP
+    Hooks --> Agent
+    Skills --> Agent
+    Agent --> Bot
     Bot --> Channel
     RunCron --> Dispatcher
     Dispatcher --> Jobs
-    Dispatcher --> Claude
+    Dispatcher --> Agent
     Dispatcher --> Scripts
     Dispatcher --> Webhook
     SendMsg --> Channel
@@ -74,7 +74,7 @@ sequenceDiagram
     participant U as User
     participant D as Discord
     participant B as ATLAS Bot
-    participant C as Claude CLI
+    participant C as Active Agent CLI
     participant F as Filesystem
 
     U->>D: Send message in channel
@@ -106,7 +106,7 @@ stateDiagram-v2
     Active --> Timeout: 10 min timeout
     Active --> Archived: Nightly session archive
 
-    Reset --> [*]: Clear session + Claude storage
+    Reset --> [*]: Clear session + harness storage
     Timeout --> Active: Next message resumes
     Archived --> [*]: Session saved to .archive/
 ```
@@ -114,12 +114,12 @@ stateDiagram-v2
 ## Features
 
 | Feature                     | Description                                                                                    |
-| --------------------------- | ---------------------------------------------------------------------------------------------- | ------ |
-| **Session Continuity**      | Maintains conversation context using `--continue` across messages                              |
+| --------------------------- | ---------------------------------------------------------------------------------------------- |
+| **Session Continuity**      | Maintains conversation context across messages                                                 |
 | **Channel Isolation**       | Each Discord channel gets its own agent session and model preference                           |
-| **Configurable Hooks**      | Three hook types: SessionStart, PreToolUse, PostToolUse                                        |
-| **Provider Switching**      | Switch the harness globally with `ATLAS_AGENT_PROVIDER=claude                                  | codex` |
-| **Model Switching**         | Switch models per channel (`!model opus`, `!model sonnet`, `!model gpt-5.4`)                   |
+| **Configurable Hooks**      | Three hook types: `SessionStart`, `PreToolUse`, `PostToolUse`                                  |
+| **Provider Switching**      | Switch the harness globally with `ATLAS_AGENT_PROVIDER=claude` or `ATLAS_AGENT_PROVIDER=codex` |
+| **Model Switching**         | Switch models per channel based on the active provider                                         |
 | **Attachment Support**      | Upload images and PDFs to Discord; the active harness reads them from the session directory    |
 | **Scheduled Automation**    | 12 cron jobs: briefings, reminders, archival, health checks, and more                          |
 | **MCP Integrations**        | Oura Ring, Google Calendar, Gmail, and Weather data via MCP servers                            |
@@ -148,7 +148,7 @@ cd atlas-bot
 # Setup
 python -m venv venv
 source venv/bin/activate
-pip install -r requirements.txt
+pip install -e ".[dev]"
 
 # Configure
 cp .env.example .env
@@ -181,9 +181,27 @@ python bot.py
 
 ### Provider Switching
 
-- Default behavior remains Claude. Leave `ATLAS_AGENT_PROVIDER=claude` for the current setup.
-- Switch to Codex by setting `ATLAS_AGENT_PROVIDER=codex` and restarting the bot and cron service.
-- Fast rollback is the inverse: set `ATLAS_AGENT_PROVIDER=claude` and restart services.
+ATLAS can run on either Claude or Codex. The active provider is controlled by `ATLAS_AGENT_PROVIDER` in `.env`.
+
+Common commands:
+
+```bash
+# Restart both services from the repo
+./restart_atlas_services.sh
+
+# Switch provider and restart immediately
+./set_atlas_provider.sh codex
+./set_atlas_provider.sh claude
+
+# Change provider without restarting yet
+./set_atlas_provider.sh codex --no-restart
+```
+
+Operational notes:
+
+- Default behavior remains Claude. Leave `ATLAS_AGENT_PROVIDER=claude` for the original setup.
+- `./set_atlas_provider.sh codex` switches to Codex, updates `.env`, and restarts `atlas-bot.service` and `cron.service`.
+- `./set_atlas_provider.sh claude` does the inverse for a fast rollback.
 - If you want Codex isolated from your personal CLI state, set `ATLAS_CODEX_HOME` to a bot-specific directory.
 - A short operator guide lives in [PROVIDER_SWITCH_USER_GUIDE.md](./PROVIDER_SWITCH_USER_GUIDE.md).
 
@@ -239,9 +257,9 @@ atlas-bot/
 ├── sessions/                  # Per-channel session data (gitignored)
 │   └── {channel_id}/
 │       ├── .claude/
-│       │   ├── settings.json        # Claude session hooks config
-│       │   └── settings.local.json  # Claude permissions
-│       ├── AGENTS.md                # Generated Codex session instructions
+│       │   ├── settings.json        # Harness session hooks config
+│       │   └── settings.local.json  # Harness permissions
+│       ├── AGENTS.md                # Generated Codex session instructions when Codex is active
 │       ├── attachments/             # Downloaded Discord attachments
 │       └── model.txt                # Channel model preference
 ├── logs/
@@ -277,7 +295,7 @@ Hooks are defined in `bot.py` `CHANNEL_SETTINGS` and run at different stages:
 
 **SessionStart** -- Runs on first message in a new session:
 
-1. **System Prompt** -- Custom instructions for Claude
+1. **System Prompt** -- Custom instructions for the active harness
 2. **Persistent Context** -- `ATLAS-Context.md` with stable facts, active threads, preferences
 3. **Date/Time** -- Current date and time for temporal awareness
 4. **Tasks Summary** -- Overdue and due-today items from your vault
@@ -285,7 +303,7 @@ Hooks are defined in `bot.py` `CHANNEL_SETTINGS` and run at different stages:
 
 **PreToolUse** -- Runs before specific tool calls:
 
-- `calendar_context.sh` -- Triggered before `google-calendar create-event` or `update-event`. Injects a 7-day ISO date table so Claude schedules events on the correct dates.
+- `calendar_context.sh` -- Triggered before calendar create/update tools. Injects a 7-day ISO date table so event scheduling lands on the correct dates.
 
 **PostToolUse** -- Runs after specific tool calls:
 
@@ -302,17 +320,17 @@ The bot responds to:
 
 ### Commands
 
-| Command               | Description                                |
-| --------------------- | ------------------------------------------ |
-| `!help`               | Show available commands                    |
-| `!model`              | Show current model (opus or sonnet)        |
-| `!model sonnet\|opus` | Switch model for this channel              |
-| `!recall <query>`     | Search the vault like a librarian          |
-| `!recent-notes`       | Summarize recently updated notes           |
-| `!open-loops`         | Review unresolved tasks and waiting states |
-| `!orphan-notes`       | Find notes that need links or cleanup      |
-| `!librarian`          | Generate a compact vault digest            |
-| `!reset` / `!clear`   | Reset the current channel's session        |
+| Command             | Description                                    |
+| ------------------- | ---------------------------------------------- |
+| `!help`             | Show available commands                        |
+| `!model`            | Show the current model for the active provider |
+| `!model <model>`    | Switch model for this channel                  |
+| `!recall <query>`   | Search the vault like a librarian              |
+| `!recent-notes`     | Summarize recently updated notes               |
+| `!open-loops`       | Review unresolved tasks and waiting states     |
+| `!orphan-notes`     | Find notes that need links or cleanup          |
+| `!librarian`        | Generate a compact vault digest                |
+| `!reset` / `!clear` | Reset the current channel's session            |
 
 ### Example Conversation
 
@@ -331,7 +349,7 @@ ATLAS: I've updated the task in your vault:
 
 ## Scheduled Jobs
 
-The cron dispatcher (`cron/dispatcher.py`) runs every minute via `run_cron.sh` and executes jobs defined in `cron/jobs.json`. Jobs can run Claude with specific models, tools, and prompts, or execute shell scripts directly.
+The cron dispatcher (`cron/dispatcher.py`) runs every minute via `run_cron.sh` and executes jobs defined in `cron/jobs.json`. Jobs can run the active agent harness with specific models, tools, and prompts, or execute shell scripts directly.
 
 | Job                     | Schedule        | Description                                                |
 | ----------------------- | --------------- | ---------------------------------------------------------- |
@@ -372,7 +390,7 @@ See [`mcp-servers/oura/README.md`](mcp-servers/oura/README.md) for Oura server s
 
 ## Skills
 
-Reusable skill definitions in `.claude/skills/` that Claude can invoke via the Skill tool:
+Reusable skill definitions in `.claude/skills/` that the active harness can invoke:
 
 | Skill                     | Description                                                            |
 | ------------------------- | ---------------------------------------------------------------------- |
@@ -443,7 +461,7 @@ flowchart TB
 - [ ] Real-time streaming status updates
 - [ ] Interactive permission prompts via Discord buttons
 - [ ] Multi-project channel mapping
-- [x] Model switching (`!model sonnet|opus`)
+- [x] Model switching (`!model` with provider-specific models)
 
 ## License
 
@@ -451,4 +469,4 @@ MIT
 
 ---
 
-Built with [Claude Code](https://github.com/anthropics/claude-code)
+Built for a configurable Claude Code / Codex ATLAS workflow

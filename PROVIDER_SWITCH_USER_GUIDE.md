@@ -35,7 +35,25 @@ ATLAS_CODEX_HOME=/path/to/bot-specific-codex-home
 
 ## 3. Restart the bot
 
-After changing `.env`, restart the bot service and cron service/process so they pick up the new provider.
+After changing `.env`, restart the bot service and cron service/process so they pick up the new provider:
+
+```bash
+./restart_atlas_services.sh
+```
+
+Shortcut:
+
+```bash
+./set_atlas_provider.sh codex
+```
+
+or:
+
+```bash
+./set_atlas_provider.sh claude
+```
+
+That command updates `.env` and restarts both services automatically.
 
 ## 4. Use it in Discord
 
@@ -54,4 +72,4 @@ If anything looks wrong:
 ATLAS_AGENT_PROVIDER=claude
 ```
 
-Then restart the bot and cron service/process. That restores the original Claude-backed setup.
+Then restart the bot and cron service/process. That restores the known-good Claude-backed setup.
