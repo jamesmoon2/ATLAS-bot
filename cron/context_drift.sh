@@ -21,6 +21,7 @@ if [ ! -f "${STATE_FILE}" ]; then
 fi
 
 # Use the configured agent harness to analyze drift
+mkdir -p "${SESSION_DIR}"
 cd "${SESSION_DIR}"
 
 DRIFT_PROMPT="Analyze context drift between stated decisions and actual execution.
@@ -79,14 +80,6 @@ REPORT=$(jq -r '.result' /tmp/context_drift_$(date +%Y%m%d).json 2>/dev/null || 
 
 # Output to console
 echo "${REPORT}"
-
-# Send to Discord (if webhook configured)
-if [ -n "${DISCORD_WEBHOOK_URL:-}" ]; then
-    curl -X POST "${DISCORD_WEBHOOK_URL}" \
-        -H "Content-Type: application/json" \
-        -d "{\"username\": \"ATLAS Context Drift\", \"content\": $(echo "${REPORT}" | jq -Rs .)}" \
-        2>/dev/null || echo "Discord notification failed"
-fi
 
 # Update state file
 jq --arg timestamp "$(date -Iseconds)" \

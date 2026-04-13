@@ -71,6 +71,19 @@ class TestEnsureChannelSession:
         assert perms.exists()
         data = json.loads(perms.read_text())
         assert "permissions" in data
+        assert "mcp__codex_apps__google_calendar_*" in data["permissions"]["allow"]
+        assert "mcp__google-calendar__*" in data["permissions"]["allow"]
+
+    def test_writes_google_calendar_hook_matchers_for_both_namespaces(self):
+        bot.ensure_channel_session(100)
+        settings = self.sessions_dir / "100" / ".claude" / "settings.json"
+        data = json.loads(settings.read_text())
+        matchers = [hook["matcher"] for hook in data["hooks"]["PreToolUse"]]
+
+        assert "mcp__codex_apps__google_calendar_create_event" in matchers
+        assert "mcp__codex_apps__google_calendar_update_event" in matchers
+        assert "mcp__google-calendar__create-event" in matchers
+        assert "mcp__google-calendar__update-event" in matchers
 
     def test_idempotent(self):
         """Calling twice doesn't error and overwrites config."""

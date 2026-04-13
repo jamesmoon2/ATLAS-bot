@@ -1,6 +1,6 @@
 #!/bin/bash
 # Inject last 3 days of ATLAS conversation summaries into session context
-# Used by .claude/settings.json SessionStart hook
+# Used by the session bootstrap hook
 
 VAULT_DAILY="${VAULT_PATH:?VAULT_PATH not set}/Daily"
 

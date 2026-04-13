@@ -24,10 +24,12 @@ import aiohttp
 from croniter import croniter
 from dotenv import load_dotenv
 
-from agent_runner import run_job_prompt
-
 # Paths
 BOT_DIR = Path(__file__).parent.parent
+if str(BOT_DIR) not in sys.path:
+    sys.path.insert(0, str(BOT_DIR))
+
+from agent_runner import run_job_prompt  # noqa: E402
 
 # Load environment variables from .env file
 load_dotenv(BOT_DIR / ".env")
@@ -77,6 +79,34 @@ def _combine_process_output(stdout: bytes, stderr: bytes) -> str:
     """Combine stdout/stderr for logging and user-facing errors."""
     parts = [stdout.decode().strip(), stderr.decode().strip()]
     return "\n\nStderr:\n".join(part for part in parts if part)
+
+
+def _build_shell_env() -> dict[str, str]:
+    """Build a stable environment for shell-backed cron jobs."""
+    env = os.environ.copy()
+    env.setdefault("BOT_DIR", str(BOT_DIR))
+
+    vault_path = env.get("VAULT_PATH")
+    if vault_path:
+        env.setdefault("VAULT_PATH", vault_path)
+
+    pythonpath_parts = [str(BOT_DIR)]
+    existing_pythonpath = env.get("PYTHONPATH")
+    if existing_pythonpath:
+        pythonpath_parts.append(existing_pythonpath)
+    env["PYTHONPATH"] = os.pathsep.join(pythonpath_parts)
+    return env
+
+
+def _is_expected_empty_output(output: str) -> bool:
+    """Return whether output represents an intentional no-op/empty response."""
+    normalized = output.strip()
+    return normalized in {
+        "No response from Claude.",
+        "No response from Codex.",
+        "No response generated (empty stdout, no stderr).",
+        "No response generated (empty Codex output).",
+    }
 
 
 def is_job_due(job: dict, state: dict, now: datetime) -> bool:
@@ -140,7 +170,7 @@ async def run_shell_command(job: dict) -> tuple[str, bool]:
             command,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
-            env={**os.environ},
+            env=_build_shell_env(),
         )
 
         stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout)
@@ -156,7 +186,7 @@ async def run_shell_command(job: dict) -> tuple[str, bool]:
         return f"Error executing command: {str(e)}", False
 
 
-async def run_claude(job: dict) -> tuple[str, bool]:
+async def run_agent_job(job: dict) -> tuple[str, bool]:
     """Execute the active agent CLI with a job prompt. Returns (output, success)."""
     timeout = job.get("timeout_seconds", 180)
     model = job.get("model", "opus")
@@ -180,6 +210,11 @@ async def run_claude(job: dict) -> tuple[str, bool]:
         bot_dir=str(BOT_DIR),
         vault_path=vault_path,
     )
+
+
+async def run_claude(job: dict) -> tuple[str, bool]:
+    """Backward-compatible wrapper for older imports/tests."""
+    return await run_agent_job(job)
 
 
 async def send_webhook(content: str, notify_config: dict) -> bool:
@@ -224,11 +259,15 @@ async def execute_job(job: dict) -> bool:
         # Shell command job
         output, success = await run_shell_command(job)
     elif "prompt" in job:
-        # Claude prompt job
-        output, success = await run_claude(job)
+        # Agent-backed prompt job
+        output, success = await run_agent_job(job)
     else:
         output = "Error: Job has neither 'command' nor 'prompt' field"
         success = False
+
+    if job.get("empty_output_ok") and not success and _is_expected_empty_output(output):
+        success = True
+        output += "\n\nTreated as success because this job allows empty output."
 
     log_entry += f"\nOutput:\n{output}\n"
 

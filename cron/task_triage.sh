@@ -20,6 +20,7 @@ if [ ! -f "${STATE_FILE}" ]; then
 fi
 
 # Use the configured agent harness to analyze tasks
+mkdir -p "${SESSION_DIR}"
 cd "${SESSION_DIR}"
 
 TRIAGE_PROMPT="Analyze the task list and generate a triage report.

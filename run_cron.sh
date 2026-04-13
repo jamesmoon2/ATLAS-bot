@@ -21,4 +21,4 @@ fi
 source "$SCRIPT_DIR/venv/bin/activate"
 
 # Run dispatcher and log output
-python "$SCRIPT_DIR/cron/dispatcher.py" >> "$SCRIPT_DIR/logs/cron/dispatcher.log" 2>&1
+python -m cron.dispatcher >> "$SCRIPT_DIR/logs/cron/dispatcher.log" 2>&1

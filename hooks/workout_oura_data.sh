@@ -4,7 +4,7 @@
 
 set -euo pipefail
 
-# Get the file path from Claude Code's tool use context
+# Get the file path from the agent tool-use context
 FILE_PATH="$1"
 
 # Only run if this is a workout log file

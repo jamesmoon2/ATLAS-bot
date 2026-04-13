@@ -17,7 +17,7 @@ echo "=== ATLAS Session Archive: ${DATE} ==="
 # 1. Create archive directory
 mkdir -p "${ARCHIVE_DIR}"
 
-# 2. Archive current session (.claude directory)
+# 2. Archive current session harness config/state (.claude directory)
 if [ -d "${SESSION_DIR}/.claude" ]; then
     echo "Archiving .claude directory..."
     cp -r "${SESSION_DIR}/.claude" "${ARCHIVE_DIR}/"
@@ -32,8 +32,14 @@ for helper in AGENTS.md ATLAS-Calendar-Context.md ATLAS-Workout-Postwrite.md .at
     fi
 done
 
-# 3. Archive Claude Code project directory
-CLAUDE_PROJECT_DIR=$(find ~/.claude/projects/ -path "*sessions-${CHANNEL_ID}*" -type d 2>/dev/null | head -1)
+# 3. Archive Claude-specific persisted session state if present
+CLAUDE_PROJECTS_ROOT="${HOME}/.claude/projects"
+CLAUDE_PROJECT_DIR=""
+if [ -d "${CLAUDE_PROJECTS_ROOT}" ]; then
+    CLAUDE_PROJECT_DIR=$(
+        find "${CLAUDE_PROJECTS_ROOT}" -path "*sessions-${CHANNEL_ID}*" -type d -print -quit 2>/dev/null || true
+    )
+fi
 if [ -n "${CLAUDE_PROJECT_DIR}" ] && [ -d "${CLAUDE_PROJECT_DIR}" ]; then
     echo "Archiving Claude project directory..."
     cp -r "${CLAUDE_PROJECT_DIR}" "${ARCHIVE_DIR}/claude-project"
@@ -41,7 +47,7 @@ else
     echo "No Claude project directory found to archive"
 fi
 
-# 4. Reset session (remove .claude directory - will be recreated on next message)
+# 4. Reset session harness config (will be recreated on next message)
 echo "Resetting session..."
 if [ -d "${SESSION_DIR}/.claude" ]; then
     rm -rf "${SESSION_DIR}/.claude"

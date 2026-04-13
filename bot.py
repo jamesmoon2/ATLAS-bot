@@ -20,7 +20,12 @@ from agent_runner import (
     get_user_selectable_models,
     prepare_session_dir,
     resolve_model_for_provider,
+    resolve_system_prompt_path,
     run_channel_message,
+)
+from mcp_tooling import (
+    GOOGLE_CALENDAR_PERMISSION_PATTERNS,
+    GOOGLE_CALENDAR_PRE_TOOL_MATCHERS,
 )
 from med_config import find_med_by_content
 
@@ -35,7 +40,7 @@ client = discord.Client(intents=intents)
 VAULT_PATH = os.getenv("VAULT_PATH", "/home/user/vault")
 SESSIONS_DIR = os.getenv("SESSIONS_DIR", "./sessions")
 BOT_DIR = os.getenv("BOT_DIR", os.path.dirname(os.path.abspath(__file__)))
-SYSTEM_PROMPT_PATH = os.getenv("SYSTEM_PROMPT_PATH", f"{VAULT_PATH}/System/claude.md")
+SYSTEM_PROMPT_PATH = resolve_system_prompt_path(VAULT_PATH, os.getenv("SYSTEM_PROMPT_PATH"))
 CONTEXT_PATH = os.getenv("CONTEXT_PATH", f"{VAULT_PATH}/System/ATLAS-Context.md")
 MAX_RESPONSE_LENGTH = 1900
 
@@ -145,23 +150,15 @@ CHANNEL_SETTINGS: dict[str, Any] = {
         ],
         "PreToolUse": [
             {
-                "matcher": "mcp__google-calendar__create-event",
+                "matcher": matcher,
                 "hooks": [
                     {
                         "type": "command",
                         "command": shlex.quote(f"{BOT_DIR}/hooks/calendar_context.sh"),
                     }
                 ],
-            },
-            {
-                "matcher": "mcp__google-calendar__update-event",
-                "hooks": [
-                    {
-                        "type": "command",
-                        "command": shlex.quote(f"{BOT_DIR}/hooks/calendar_context.sh"),
-                    }
-                ],
-            },
+            }
+            for matcher in GOOGLE_CALENDAR_PRE_TOOL_MATCHERS
         ],
         "PostToolUse": [
             {
@@ -203,6 +200,7 @@ CHANNEL_PERMISSIONS: dict[str, Any] = {
             "Bash(mv:*)",
             "Bash(mkdir:*)",
             "Bash(done)",
+            *GOOGLE_CALENDAR_PERMISSION_PATTERNS,
             "mcp__garmin__*",
         ]
     }
@@ -224,11 +222,10 @@ def ensure_channel_session(channel_id: int) -> str:
 
 
 def reset_channel_session(channel_id: int) -> bool:
-    """Delete a channel's session directory and Claude's session storage."""
+    """Delete a channel's session directory and related provider session artifacts."""
     channel_dir = os.path.join(SESSIONS_DIR, str(channel_id))
 
-    # Also clear Claude's session storage in ~/.claude/projects/
-    # Claude stores sessions based on the working directory path
+    # Claude stores per-workdir session state under ~/.claude/projects/.
     abs_channel_dir = os.path.abspath(channel_dir)
     claude_project_name = abs_channel_dir.replace("/", "-")
     claude_projects_dir = os.path.expanduser("~/.claude/projects")

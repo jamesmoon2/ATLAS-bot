@@ -10,6 +10,7 @@ class TestGetChannelModel:
 
     @pytest.fixture(autouse=True)
     def _patch(self, sessions_dir, monkeypatch):
+        monkeypatch.setenv("ATLAS_AGENT_PROVIDER", "claude")
         monkeypatch.setattr(bot, "SESSIONS_DIR", str(sessions_dir))
         self.sessions_dir = sessions_dir
 
@@ -41,6 +42,7 @@ class TestSetChannelModel:
 
     @pytest.fixture(autouse=True)
     def _patch(self, sessions_dir, monkeypatch):
+        monkeypatch.setenv("ATLAS_AGENT_PROVIDER", "claude")
         monkeypatch.setattr(bot, "SESSIONS_DIR", str(sessions_dir))
         self.sessions_dir = sessions_dir
 

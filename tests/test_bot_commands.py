@@ -11,6 +11,7 @@ from tests.conftest import AsyncContextManager
 
 @pytest.fixture(autouse=True)
 def _patch_env(sessions_dir, monkeypatch):
+    monkeypatch.setenv("ATLAS_AGENT_PROVIDER", "claude")
     monkeypatch.setattr(bot, "SESSIONS_DIR", str(sessions_dir))
     bot.channel_locks.clear()
 

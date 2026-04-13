@@ -12,6 +12,8 @@ import tempfile
 from pathlib import Path
 from typing import Any
 
+from mcp_tooling import is_google_calendar_tool_name, normalize_allowed_tools_for_provider
+
 SUPPORTED_PROVIDERS = {"claude", "codex"}
 CLAUDE_MODELS = {"haiku", "sonnet", "opus"}
 CODEX_MODELS = {"gpt-5.4"}
@@ -24,6 +26,26 @@ CODEX_SESSION_MARKER = ".atlas-codex-session-started"
 CODEX_AGENTS_FILENAME = "AGENTS.md"
 CODEX_CALENDAR_CONTEXT_FILENAME = "ATLAS-Calendar-Context.md"
 CODEX_WORKOUT_HELP_FILENAME = "ATLAS-Workout-Postwrite.md"
+CODEX_HOME_DIRNAME = ".atlas-codex-home"
+CODEX_SANDBOX_MODES = {"read-only", "workspace-write", "danger-full-access"}
+CODEX_CURATED_PLUGINS = (
+    "google-calendar@openai-curated",
+    "github@openai-curated",
+)
+
+
+def resolve_system_prompt_path(vault_path: str, configured_path: str | None = None) -> str:
+    """Resolve the system prompt path without hard-coding a provider-specific filename."""
+    if configured_path:
+        return configured_path
+
+    system_dir = Path(vault_path) / "System"
+    for filename in ("ATLAS.md", "atlas.md", "claude.md"):
+        candidate = system_dir / filename
+        if candidate.exists():
+            return str(candidate)
+
+    return str(system_dir / "claude.md")
 
 
 def get_agent_provider() -> str:
@@ -240,6 +262,7 @@ def _codex_command_prefix(
 ) -> list[str]:
     """Build the shared Codex CLI prefix."""
     reasoning_effort = os.getenv("ATLAS_CODEX_REASONING_EFFORT", "xhigh")
+    sandbox_mode = _get_codex_sandbox_mode()
     prefix = [
         "codex",
         "exec",
@@ -248,7 +271,7 @@ def _codex_command_prefix(
         "-m",
         model,
         "-s",
-        "workspace-write",
+        sandbox_mode,
         "--skip-git-repo-check",
         "--add-dir",
         bot_dir,
@@ -262,14 +285,86 @@ def _codex_command_prefix(
     return prefix
 
 
-def _build_codex_env(bot_dir: str) -> dict[str, str]:
+def _get_codex_sandbox_mode() -> str:
+    """Return the configured Codex sandbox mode for ATLAS."""
+    sandbox_mode = os.getenv("ATLAS_CODEX_SANDBOX", "workspace-write").strip().lower()
+    if sandbox_mode in CODEX_SANDBOX_MODES:
+        return sandbox_mode
+    return "workspace-write"
+
+
+def _get_codex_home(bot_dir: str) -> Path:
+    """Resolve the Codex home directory used by the ATLAS harness."""
+    configured_home = os.getenv("ATLAS_CODEX_HOME")
+    if configured_home:
+        return Path(configured_home).expanduser()
+    return Path(bot_dir) / CODEX_HOME_DIRNAME
+
+
+def _build_codex_config(bot_dir: str, vault_path: str) -> str:
+    """Render the managed Codex profile for ATLAS."""
+    bot_path = Path(bot_dir).resolve()
+    vault_root = Path(vault_path).resolve()
+    reasoning_effort = os.getenv("ATLAS_CODEX_REASONING_EFFORT", "xhigh")
+    model = os.getenv("ATLAS_CODEX_MODEL", "gpt-5.4")
+    oura_python = os.getenv(
+        "OURA_PYTHON",
+        str(bot_path / "mcp-servers" / "oura" / "venv" / "bin" / "python3"),
+    )
+    oura_script = os.getenv(
+        "OURA_SCRIPT",
+        str(bot_path / "mcp-servers" / "oura" / "mcp_server.py"),
+    )
+    lines = [
+        f"model = {json.dumps(model)}",
+        f"model_reasoning_effort = {json.dumps(reasoning_effort)}",
+        'personality = "friendly"',
+        "",
+        f"[projects.{json.dumps(str(bot_path))}]",
+        'trust_level = "trusted"',
+        "",
+        f"[projects.{json.dumps(str(vault_root))}]",
+        'trust_level = "trusted"',
+        "",
+    ]
+
+    for plugin_name in CODEX_CURATED_PLUGINS:
+        lines.extend(
+            [
+                f"[plugins.{json.dumps(plugin_name)}]",
+                "enabled = true",
+                "",
+            ]
+        )
+
+    lines.extend(
+        [
+            "[mcp_servers.oura]",
+            f"command = {json.dumps(oura_python)}",
+            f"args = {json.dumps([oura_script])}",
+            "",
+            "[mcp_servers.weather]",
+            'command = "npx"',
+            'args = ["-y", "@dangahagan/weather-mcp@latest"]',
+            "",
+        ]
+    )
+    return "\n".join(lines)
+
+
+def _ensure_codex_home(bot_dir: str, vault_path: str) -> Path:
+    """Create or refresh the managed Codex profile for ATLAS."""
+    codex_home = _get_codex_home(bot_dir)
+    codex_home.mkdir(parents=True, exist_ok=True)
+    config_path = codex_home / "config.toml"
+    _atomic_write_text(config_path, _build_codex_config(bot_dir, vault_path) + "\n")
+    return codex_home
+
+
+def _build_codex_env(bot_dir: str, vault_path: str) -> dict[str, str]:
     """Build the environment for Codex subprocesses."""
     env = os.environ.copy()
-    codex_home = os.getenv("ATLAS_CODEX_HOME")
-    if codex_home:
-        env["CODEX_HOME"] = codex_home
-    elif "CODEX_HOME" in env:
-        env["CODEX_HOME"] = env["CODEX_HOME"]
+    env["CODEX_HOME"] = str(_ensure_codex_home(bot_dir, vault_path))
     return env
 
 
@@ -318,9 +413,20 @@ def _build_allowed_tools_note(allowed_tools: list[str]) -> str:
     )
 
 
+def _build_scheduled_job_note() -> str:
+    """Render execution guidance for unattended scheduled jobs."""
+    return (
+        "## Execution Context\n\n"
+        "This is an unattended scheduled job.\n"
+        "Do not ask the user follow-up questions or wait for input.\n"
+        "Use the prompt, referenced files, and available tools to make the best autonomous effort.\n"
+        "If something is missing or broken, state the blocker clearly in the output.\n\n"
+    )
+
+
 def _needs_calendar_context(allowed_tools: list[str], prompt: str) -> bool:
     """Determine whether a Codex prompt should include the calendar date reference."""
-    if any(tool.startswith("mcp__google-calendar__") for tool in allowed_tools):
+    if any(is_google_calendar_tool_name(tool) for tool in allowed_tools):
         return True
     lowered_prompt = prompt.lower()
     return any(token in lowered_prompt for token in ("calendar", "schedule", "meeting", "event"))
@@ -439,7 +545,7 @@ async def _run_codex_exec(
             stdin=asyncio.subprocess.DEVNULL,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
-            env=_build_codex_env(bot_dir),
+            env=_build_codex_env(bot_dir, vault_path),
         )
         stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout)
         response = _extract_codex_output(output_file)
@@ -613,11 +719,13 @@ async def run_job_prompt(
     """Run a one-shot job prompt through the active provider."""
     provider = get_agent_provider()
     resolved_model = resolve_model_for_provider(model, provider)
+    provider_allowed_tools = normalize_allowed_tools_for_provider(allowed_tools, provider)
 
     if provider == "codex":
-        effective_prompt = _build_allowed_tools_note(allowed_tools)
+        effective_prompt = _build_scheduled_job_note()
+        effective_prompt += _build_allowed_tools_note(provider_allowed_tools)
         effective_prompt += _expand_skill_prompt_if_needed(prompt, bot_dir)
-        if _needs_calendar_context(allowed_tools, prompt):
+        if _needs_calendar_context(provider_allowed_tools, prompt):
             calendar_hook = Path(bot_dir) / "hooks" / "calendar_context.sh"
             if calendar_hook.exists():
                 calendar_context = await _capture_shell(
@@ -668,7 +776,7 @@ async def run_job_prompt(
             "--model",
             resolved_model,
             "--allowedTools",
-            ",".join(allowed_tools or ["Read"]),
+            ",".join(provider_allowed_tools or ["Read"]),
             "-p",
             prompt,
             cwd=bot_dir,

@@ -9,11 +9,12 @@ import json
 import os
 import sys
 
-from agent_runner import run_session_prompt
+from agent_runner import resolve_system_prompt_path, run_session_prompt
+from mcp_tooling import GOOGLE_CALENDAR_PERMISSION_PATTERNS, GOOGLE_CALENDAR_PRE_TOOL_MATCHERS
 
 BOT_DIR = os.getenv("BOT_DIR", os.path.dirname(os.path.abspath(__file__)))
 VAULT_PATH = os.getenv("VAULT_PATH", "/home/user/vault")
-SYSTEM_PROMPT_PATH = os.getenv("SYSTEM_PROMPT_PATH", f"{VAULT_PATH}/System/claude.md")
+SYSTEM_PROMPT_PATH = resolve_system_prompt_path(VAULT_PATH, os.getenv("SYSTEM_PROMPT_PATH"))
 CONTEXT_PATH = os.getenv("CONTEXT_PATH", f"{VAULT_PATH}/System/ATLAS-Context.md")
 
 
@@ -54,7 +55,19 @@ CHANNEL_SETTINGS = {
                     },
                 ]
             }
-        ]
+        ],
+        "PreToolUse": [
+            {
+                "matcher": matcher,
+                "hooks": [
+                    {
+                        "type": "command",
+                        "command": os.path.join(BOT_DIR, "hooks", "calendar_context.sh"),
+                    }
+                ],
+            }
+            for matcher in GOOGLE_CALENDAR_PRE_TOOL_MATCHERS
+        ],
     }
 }
 
@@ -84,6 +97,7 @@ CHANNEL_PERMISSIONS = {
             "Bash(mv:*)",
             "Bash(mkdir:*)",
             "Bash(done)",
+            *GOOGLE_CALENDAR_PERMISSION_PATTERNS,
             "mcp__garmin__*",
         ]
     }
