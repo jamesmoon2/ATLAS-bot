@@ -1,13 +1,18 @@
 .env
 venv/
 __pycache__/
+.ruff_cache/
 *.pyc
+*.egg-info/
+.DS_Store
+._*
 sessions/
 *.log
 
 # Runtime state and artifacts
 cron/state/
 logs/
+.atlas-codex-home/
 .coverage
 
 # Medication config (contains personal health info)
