@@ -1,0 +1,8 @@
+mcp>=1.12.0
+pydantic>=2.5.0
+pydantic-settings>=2.1.0
+httpx>=0.25.0
+structlog>=23.2.0
+python-dotenv>=1.0.0
+garminconnect>=0.2.38
+garth>=0.8.0,<1

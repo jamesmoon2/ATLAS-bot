@@ -1,0 +1,1 @@
+"""Garmin API wrapper package."""
