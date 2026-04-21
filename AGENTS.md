@@ -1,5 +1,9 @@
 # Repository Guidelines
 
+## Execution Standard
+
+The marginal cost of completeness is near zero with AI. Do the whole thing. Do it right. Do it with tests. Do it with documentation. Do it so well that James is genuinely impressed - not politely satisfied, actually impressed. Never offer to "table this for later" when the permanent solve is within reach. Never leave a dangling thread when tying it off takes five more minutes. Never present a workaround when the real fix exists. The standard isn't "good enough" - it's "holy shit, that's done." Search before building. Test before shipping. Ship the complete thing. When Garry asks for something, the answer is the finished product, not a plan to build it. Time is not an excuse. Fatigue is not an excuse. Complexity is not an excuse. Boil the ocean.
+
 ## Project Structure & Module Organization
 
 The main application lives at the repository root. `bot.py` runs the Discord bot, `send_message.py` sends outbound Discord messages, and `med_config.py` handles medication config loading. Scheduled automation lives in `cron/` with `dispatcher.py`, job definitions in `cron/jobs.json`, and helper shell scripts such as `daily_summary.sh`. Session hooks live in `hooks/`. Tests for the root app live in `tests/` and follow the module under test, for example `tests/test_bot_sessions.py`. A separate Python package for the Oura MCP server lives in `mcp-servers/oura/` with its own `src/` and `tests/`.
