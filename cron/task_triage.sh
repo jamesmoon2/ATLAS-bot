@@ -84,10 +84,34 @@ echo "${REPORT}"
 
 # Send to Discord (if webhook configured)
 if [ -n "${DISCORD_WEBHOOK_URL:-}" ]; then
-    curl -X POST "${DISCORD_WEBHOOK_URL}" \
-        -H "Content-Type: application/json" \
-        -d "{\"username\": \"ATLAS Task Triage\", \"content\": $(echo "${REPORT}" | jq -Rs .)}" \
-        2>/dev/null || echo "Discord notification failed"
+    REPORT_FILE="$(mktemp)"
+    printf "%s" "${REPORT}" > "${REPORT_FILE}"
+    python3 - "${REPORT_FILE}" <<'PY' || echo "Discord notification failed"
+import json
+import os
+import sys
+import time
+from pathlib import Path
+from urllib import request
+
+url = os.environ["DISCORD_WEBHOOK_URL"]
+report_path = Path(sys.argv[1])
+content = report_path.read_text(encoding="utf-8")
+
+for start in range(0, len(content), 1900):
+    chunk = content[start : start + 1900]
+    payload = json.dumps({"username": "ATLAS Task Triage", "content": chunk}).encode("utf-8")
+    req = request.Request(
+        url,
+        data=payload,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    with request.urlopen(req):
+        pass
+    time.sleep(0.5)
+PY
+    rm -f "${REPORT_FILE}"
 fi
 
 # Update state file

@@ -5,7 +5,6 @@ import json
 import os
 import re
 import shlex
-import shutil
 import signal
 import tempfile
 import uuid
@@ -16,6 +15,8 @@ import discord
 from dotenv import load_dotenv
 
 from agent_runner import (
+    build_prompt_with_attachments,
+    clear_provider_private_session_state,
     get_agent_provider,
     get_user_selectable_models,
     prepare_session_dir,
@@ -24,6 +25,7 @@ from agent_runner import (
     run_channel_message,
 )
 from mcp_tooling import (
+    GMAIL_PERMISSION_PATTERNS,
     GOOGLE_CALENDAR_PERMISSION_PATTERNS,
     GOOGLE_CALENDAR_PRE_TOOL_MATCHERS,
 )
@@ -192,6 +194,7 @@ CHANNEL_PERMISSIONS: dict[str, Any] = {
             "Bash(date:*)",
             "Bash(echo:*)",
             "Bash(pwd:*)",
+            "Bash(python3:*)",
             "Bash(which:*)",
             "Bash(file:*)",
             "Bash(stat:*)",
@@ -201,7 +204,9 @@ CHANNEL_PERMISSIONS: dict[str, Any] = {
             "Bash(mkdir:*)",
             "Bash(done)",
             *GOOGLE_CALENDAR_PERMISSION_PATTERNS,
+            *GMAIL_PERMISSION_PATTERNS,
             "mcp__garmin__*",
+            "mcp__whoop__*",
         ]
     }
 }
@@ -225,22 +230,17 @@ def reset_channel_session(channel_id: int) -> bool:
     """Delete a channel's session directory and related provider session artifacts."""
     channel_dir = os.path.join(SESSIONS_DIR, str(channel_id))
 
-    # Claude stores per-workdir session state under ~/.claude/projects/.
-    abs_channel_dir = os.path.abspath(channel_dir)
-    claude_project_name = abs_channel_dir.replace("/", "-")
-    claude_projects_dir = os.path.expanduser("~/.claude/projects")
-    claude_session_dir = os.path.join(claude_projects_dir, claude_project_name)
-
     cleared = False
 
     # Clear local session directory
     if os.path.exists(channel_dir):
+        import shutil
+
         shutil.rmtree(channel_dir, ignore_errors=True)
         cleared = True
 
-    # Clear Claude's session storage
-    if os.path.exists(claude_session_dir):
-        shutil.rmtree(claude_session_dir)
+    # Clear external provider-managed session storage.
+    if clear_provider_private_session_state(channel_dir):
         cleared = True
 
     return cleared
@@ -276,14 +276,7 @@ async def download_attachments(channel_id: int, attachments: list) -> list[str]:
 
 def build_prompt_with_files(content: str, file_paths: list[str]) -> str:
     """Build a provider-neutral prompt with file references."""
-    if not file_paths:
-        return content
-
-    files_section = "\n\n[Attached files - use Read tool to view:]\n"
-    for path in file_paths:
-        files_section += f"- {path}\n"
-
-    return (content or "Please analyze the attached file(s).") + files_section
+    return build_prompt_with_attachments(content, file_paths)
 
 
 def build_librarian_prompt(command: str, args: str) -> str:
@@ -503,15 +496,14 @@ async def on_message(message):
         if downloaded_files:
             print(f"  Downloaded {len(downloaded_files)} attachment(s)")
 
-    # Build prompt with file references
-    prompt = build_prompt_with_files(content, downloaded_files)
-
     # Check if we have something to process
     if not content and not downloaded_files:
         await message.channel.send("What do you need?")
         return
 
-    print(f"  Processing: {prompt[:50]}")
+    prompt = content
+    preview = prompt or "[attachments only]"
+    print(f"  Processing: {preview[:50]}")
 
     lock = get_channel_lock(message.channel.id)
     if lock.locked():

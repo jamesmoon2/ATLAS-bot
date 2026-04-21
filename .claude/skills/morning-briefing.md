@@ -31,11 +31,15 @@ Generate a morning briefing for James with weather, schedule, training, medicati
    - Check if any medications are due today based on schedules
    - List upcoming doses
 
-6. **Recovery** — Fetch Oura data:
+6. **Recovery** — Fetch both Oura and WHOOP data:
 
    - Use `mcp__oura__get_daily_sleep` for last night's sleep
    - Use `mcp__oura__get_daily_readiness` for this morning's readiness
-   - Include sleep score, readiness score, HRV balance
+   - Use `mcp__whoop__get_daily_sleep` for last night's WHOOP sleep
+   - Use `mcp__whoop__get_daily_recovery` for this morning's WHOOP recovery
+   - Use `mcp__whoop__get_daily_cycle` for today's WHOOP cycle/strain
+   - Include Oura sleep score, readiness score, HRV balance
+   - Include WHOOP sleep performance, recovery score, strain
 
 7. **Recommendation** — Synthesize all data into a brief recommendation:
    - Should James proceed with planned training?
@@ -79,6 +83,12 @@ Generate a morning briefing for James with weather, schedule, training, medicati
 - Sleep: [score]
 - Readiness: [score]
 - HRV Balance: [score]/100
+
+**Last Night's WHOOP ([date]):**
+
+- Sleep Performance: [score]%
+- Recovery: [score]
+- Strain: [score]
 
 ## Recommendation
 

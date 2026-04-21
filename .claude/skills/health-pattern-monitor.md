@@ -10,6 +10,9 @@ Monitor health metrics for concerning patterns and alert only when action is nee
    - Use `mcp__oura__get_daily_sleep` for last night's sleep
    - Use `mcp__oura__get_daily_readiness` for this morning's readiness
    - Use `mcp__oura__get_daily_activity` for activity data
+   - Use `mcp__whoop__get_daily_sleep` for last night's WHOOP sleep
+   - Use `mcp__whoop__get_daily_recovery` for this morning's WHOOP recovery
+   - Use `mcp__whoop__get_daily_cycle` for today's WHOOP cycle/strain
 
 2. **Read Baselines** from `/home/jmooney/vault/System/ATLAS-Context.md`:
 
@@ -26,6 +29,8 @@ Monitor health metrics for concerning patterns and alert only when action is nee
    - HRV balance < 20 (significantly below baseline)
    - Sleep duration < 6 hours
    - Activity score < 50 with no rest day explanation
+   - WHOOP recovery < 34 for 2+ consecutive days
+   - WHOOP sleep performance < 70 for 2+ consecutive days
 
    **Do NOT alert for:**
 
@@ -45,7 +50,7 @@ Monitor health metrics for concerning patterns and alert only when action is nee
    **Health Alert**
 
    **Pattern:** [what was detected]
-   **Data:** [specific numbers]
+   **Data:** [specific Oura + WHOOP numbers]
    **Recommendation:** [actionable suggestion]
    ```
 
@@ -60,12 +65,12 @@ Monitor health metrics for concerning patterns and alert only when action is nee
 
 **Normal (no alert):**
 
-- Sleep 76, Readiness 65, HRV 35 → `NO_ALERT`
-- Sleep 82, Readiness 71, HRV 28 → `NO_ALERT`
+- Oura Sleep 76, Readiness 65, HRV 35; WHOOP Recovery 52, Sleep Performance 81 → `NO_ALERT`
+- Oura Sleep 82, Readiness 71, HRV 28; WHOOP Recovery 61, Sleep Performance 86 → `NO_ALERT`
 
 **Alert:**
 
-- Sleep 52, Readiness 45, HRV 18 (second consecutive day) → Alert with recovery recommendation
+- Oura Sleep 52, Readiness 45, HRV 18; WHOOP Recovery 29, Sleep Performance 63 (second consecutive day) → Alert with recovery recommendation
 
 ## Notes
 

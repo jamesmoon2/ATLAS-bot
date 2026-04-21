@@ -1,5 +1,10 @@
 -r requirements.txt
 -r mcp-servers/oura/requirements.txt
+-r mcp-servers/whoop/requirements.txt
 pytest>=8.0
 pytest-asyncio>=0.24
 pytest-cov>=5.0
+google-api-python-client>=2.169.0
+google-auth>=2.40.0
+google-auth-httplib2>=0.2.0
+google-auth-oauthlib>=1.2.2

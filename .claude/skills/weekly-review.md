@@ -12,6 +12,9 @@ Generate a comprehensive weekly review of training, health, and progress.
    - Use `mcp__oura__get_daily_sleep` with start_date and end_date for 7 days
    - Use `mcp__oura__get_daily_readiness` with start_date and end_date for 7 days
    - Use `mcp__oura__get_daily_activity` with start_date and end_date for 7 days
+   - Use `mcp__whoop__get_daily_sleep` with start_date and end_date for 7 days
+   - Use `mcp__whoop__get_daily_recovery` with start_date and end_date for 7 days
+   - Use `mcp__whoop__get_daily_cycle` with start_date and end_date for 7 days
 
 3. **Read Vault Files**
 
@@ -45,6 +48,9 @@ Generate a comprehensive weekly review of training, health, and progress.
 | Readiness      | X        | ↑/↓/→ |       |
 | HRV Balance    | X        | ↑/↓/→ |       |
 | Activity Score | X        | ↑/↓/→ |       |
+| WHOOP Sleep    | X        | ↑/↓/→ |       |
+| WHOOP Recovery | X        | ↑/↓/→ |       |
+| WHOOP Strain   | X        | ↑/↓/→ |       |
 
 ## Progress Markers
 

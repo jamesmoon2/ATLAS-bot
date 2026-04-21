@@ -46,6 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - `user-profile.json` config file for location data (gitignored), with `.json.example` template
+- Managed Codex profile now enables Gmail alongside Google Calendar, and Discord session permissions now allow Gmail tools for interactive bot use
 - `morning-briefing` skill reads weather coordinates from `user-profile.json` instead of hardcoding
 - `log-medication` skill reads medication names, schedules, and intervals from `meds.json` instead of hardcoding
 - `weekly-training-planner` skill reads program template (exercises, volume, RPE, rest periods) from Training-State.md and personal constraints (equipment, injuries, HR, schedule) from Training-Profile.md instead of hardcoding

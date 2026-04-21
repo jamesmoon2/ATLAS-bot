@@ -10,7 +10,11 @@ import os
 import sys
 
 from agent_runner import resolve_system_prompt_path, run_session_prompt
-from mcp_tooling import GOOGLE_CALENDAR_PERMISSION_PATTERNS, GOOGLE_CALENDAR_PRE_TOOL_MATCHERS
+from mcp_tooling import (
+    GMAIL_PERMISSION_PATTERNS,
+    GOOGLE_CALENDAR_PERMISSION_PATTERNS,
+    GOOGLE_CALENDAR_PRE_TOOL_MATCHERS,
+)
 
 BOT_DIR = os.getenv("BOT_DIR", os.path.dirname(os.path.abspath(__file__)))
 VAULT_PATH = os.getenv("VAULT_PATH", "/home/user/vault")
@@ -89,6 +93,7 @@ CHANNEL_PERMISSIONS = {
             "Bash(date:*)",
             "Bash(echo:*)",
             "Bash(pwd:*)",
+            "Bash(python3:*)",
             "Bash(which:*)",
             "Bash(file:*)",
             "Bash(stat:*)",
@@ -98,6 +103,7 @@ CHANNEL_PERMISSIONS = {
             "Bash(mkdir:*)",
             "Bash(done)",
             *GOOGLE_CALENDAR_PERMISSION_PATTERNS,
+            *GMAIL_PERMISSION_PATTERNS,
             "mcp__garmin__*",
         ]
     }

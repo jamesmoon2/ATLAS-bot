@@ -38,6 +38,7 @@ flowchart TB
 
     subgraph MCP[MCP Servers]
         Oura[Oura Ring]
+        Whoop[WHOOP]
         Calendar[Google Calendar]
         Gmail[Gmail]
         Weather[Weather]
@@ -122,7 +123,7 @@ stateDiagram-v2
 | **Model Switching**         | Switch models per channel based on the active provider                                         |
 | **Attachment Support**      | Upload images and PDFs to Discord; the active harness reads them from the session directory    |
 | **Scheduled Automation**    | 12 cron jobs: briefings, reminders, archival, health checks, and more                          |
-| **MCP Integrations**        | Oura Ring, Google Calendar, Gmail, and Weather data via MCP servers                            |
+| **MCP Integrations**        | Oura Ring, WHOOP, Google Calendar, Gmail, and Weather data via MCP servers                     |
 | **ATLAS Skills**            | Reusable skills for briefings, workout logging, training plans, health monitoring, and reviews |
 | **Second Brain Librarian**  | Vault indexing, note recall, open-loop review, orphan-note detection, and twice-weekly digests |
 | **Medication Tracking**     | Config-driven cron reminders (`meds.json`) with checkmark reaction logging to vault files      |
@@ -162,22 +163,23 @@ python bot.py
 
 ### Environment Variables
 
-| Variable                       | Description                                        | Required |
-| ------------------------------ | -------------------------------------------------- | -------- |
-| `DISCORD_TOKEN`                | Discord bot token                                  | Yes      |
-| `VAULT_PATH`                   | Path to your notes/vault directory                 | Yes      |
-| `SESSIONS_DIR`                 | Where to store session data                        | No       |
-| `BOT_DIR`                      | Bot installation directory                         | No       |
-| `SYSTEM_PROMPT_PATH`           | Path to system prompt file                         | No       |
-| `CONTEXT_PATH`                 | Path to persistent context file (ATLAS-Context.md) | No       |
-| `TASKS_FILE_PATH`              | Path to tasks file for hook injection              | No       |
-| `ATLAS_AGENT_PROVIDER`         | Active harness: `claude` or `codex`                | No       |
-| `ATLAS_CLAUDE_MODEL`           | Default Claude model for new channels              | No       |
-| `ATLAS_CODEX_MODEL`            | Default Codex model for new channels               | No       |
-| `ATLAS_CODEX_REASONING_EFFORT` | Codex reasoning effort (`low`..`xhigh`)            | No       |
-| `ATLAS_CODEX_HOME`             | Optional bot-specific Codex profile/home           | No       |
-| `DISCORD_CHANNEL_ID`           | Channel ID for `send_message.py` and cron jobs     | No       |
-| `DISCORD_WEBHOOK_URL`          | Webhook URL for cron job notifications             | No       |
+| Variable                              | Description                                                      | Required |
+| ------------------------------------- | ---------------------------------------------------------------- | -------- |
+| `DISCORD_TOKEN`                       | Discord bot token                                                | Yes      |
+| `VAULT_PATH`                          | Path to your notes/vault directory                               | Yes      |
+| `SESSIONS_DIR`                        | Where to store session data                                      | No       |
+| `BOT_DIR`                             | Bot installation directory                                       | No       |
+| `SYSTEM_PROMPT_PATH`                  | Path to system prompt file                                       | No       |
+| `CONTEXT_PATH`                        | Path to persistent context file (ATLAS-Context.md)               | No       |
+| `TASKS_FILE_PATH`                     | Path to tasks file for hook injection                            | No       |
+| `ATLAS_AGENT_PROVIDER`                | Active harness: `claude` or `codex`                              | No       |
+| `ATLAS_CLAUDE_MODEL`                  | Default Claude model for new channels                            | No       |
+| `ATLAS_CODEX_MODEL`                   | Default Codex model for new channels                             | No       |
+| `ATLAS_CODEX_REASONING_EFFORT`        | Codex reasoning effort (`low`..`xhigh`)                          | No       |
+| `ATLAS_CODEX_HOME`                    | Optional bot-specific Codex profile/home                         | No       |
+| `ATLAS_CODEX_CRON_TIMEOUT_MULTIPLIER` | Multiplier for agent cron job timeouts under Codex (default `3`) | No       |
+| `DISCORD_CHANNEL_ID`                  | Channel ID for `send_message.py` and cron jobs                   | No       |
+| `DISCORD_WEBHOOK_URL`                 | Webhook URL for cron job notifications                           | No       |
 
 ### Provider Switching
 
@@ -210,6 +212,7 @@ Operational notes:
 ```
 atlas-bot/
 ├── bot.py                    # Main Discord bot
+├── garmin_workout_fallback.py # Repo-native Garmin workout lookup fallback
 ├── med_config.py             # Shared medication config loader
 ├── meds.json                 # Medication config (gitignored — personal health data)
 ├── meds.json.example         # Sanitized example config
@@ -232,9 +235,12 @@ atlas-bot/
 │   ├── recent_summaries.sh   # Recent daily summary context
 │   ├── librarian_context.sh  # SessionStart: inject compact vault snapshot
 │   ├── calendar_context.sh   # PreToolUse: 7-day calendar for event creation
-│   └── workout_oura_data.sh  # PostToolUse: fetch Oura data after workout log
+│   └── workout_oura_data.sh  # PostToolUse: fetch Oura + WHOOP data after workout log
 ├── mcp-servers/
 │   ├── oura/                 # Custom Oura Ring MCP server
+│   │   ├── mcp_server.py
+│   │   └── README.md
+│   ├── whoop/                # Repo-managed WHOOP MCP server
 │   │   ├── mcp_server.py
 │   │   └── README.md
 │   └── credentials/          # OAuth credentials (gitignored)
@@ -260,6 +266,7 @@ atlas-bot/
 │       │   ├── settings.json        # Harness session hooks config
 │       │   └── settings.local.json  # Harness permissions
 │       ├── AGENTS.md                # Generated Codex session instructions when Codex is active
+│       ├── ATLAS-Garmin-Workout-Helper.md  # Garmin MCP/fallback instructions
 │       ├── attachments/             # Downloaded Discord attachments
 │       └── model.txt                # Channel model preference
 ├── logs/
@@ -307,7 +314,7 @@ Hooks are defined in `bot.py` `CHANNEL_SETTINGS` and run at different stages:
 
 **PostToolUse** -- Runs after specific tool calls:
 
-- `workout_oura_data.sh` -- Triggered after writing to `Workout-Logs/20*.md`. Fetches Oura recovery data to add context to the workout log.
+- `workout_oura_data.sh` -- Triggered after writing to `Workout-Logs/20*.md`. Fetches Oura and WHOOP recovery data to add context to the workout log.
 
 ## Usage
 
@@ -351,17 +358,19 @@ ATLAS: I've updated the task in your vault:
 
 The cron dispatcher (`cron/dispatcher.py`) runs every minute via `run_cron.sh` and executes jobs defined in `cron/jobs.json`. Jobs can run the active agent harness with specific models, tools, and prompts, or execute shell scripts directly.
 
+When `ATLAS_AGENT_PROVIDER=codex`, agent-backed cron jobs automatically get a longer timeout budget because Codex is slower in unattended runs. The default is `3x` the configured job timeout, adjustable with `ATLAS_CODEX_CRON_TIMEOUT_MULTIPLIER`. If a specific job needs custom tuning later, `cron/jobs.json` also supports explicit `timeout_seconds_by_provider` overrides.
+
 | Job                     | Schedule        | Description                                                |
 | ----------------------- | --------------- | ---------------------------------------------------------- |
 | Morning Briefing        | 5:30 AM daily   | Weather, calendar, training plan, medications, recovery    |
 | Daily Summary           | 11:55 PM daily  | End-of-day review, context file updates                    |
-| Session Archive         | 11:59 PM daily  | Archive session data, reset for next day                   |
+| Session Archive         | 12:05 AM daily  | Archive session data, reset after the nightly summary      |
 | Weekly Training Planner | 12:00 PM Sun    | Plan next week's training based on recovery and calendar   |
 | MCP Health Check        | 6:00 AM Mon     | Validate OAuth tokens for Calendar and Gmail               |
 | Stale Project Detector  | 8:00 AM Sat     | Scan vault for projects untouched 30+ days                 |
 | Context Drift Detector  | 8:00 AM Sun     | Check ATLAS-Context.md for consistency                     |
-| Health Pattern Monitor  | 10:30 AM daily  | Oura trend analysis, alerts only when noteworthy           |
-| Oura Context Update     | 10:00 AM daily  | Backfill Oura data into workout logs                       |
+| Health Pattern Monitor  | 10:30 AM daily  | Oura + WHOOP trend analysis, alerts only when noteworthy   |
+| Recovery Context Update | 10:00 AM daily  | Backfill Oura + WHOOP data into workout logs               |
 | Vault Index Refresh     | 2:15 AM daily   | Rebuilds `vault-index.json` and `vault-index.md`           |
 | Second Brain Librarian  | 7:45 AM Mon/Fri | Reviews recent notes, open loops, orphans, and stale notes |
 | Weekly Review           | 8:00 PM Sun     | Synthesize week's data into structured review              |
@@ -378,15 +387,30 @@ Setup:
 
 ## MCP Integrations
 
-| Server              | Purpose                                                                |
-| ------------------- | ---------------------------------------------------------------------- |
-| **Oura Ring**       | Sleep, readiness, activity, HRV, and stress data (`mcp-servers/oura/`) |
-| **Garmin Connect**  | Activities, training status, body composition, workouts, and more      |
-| **Google Calendar** | Event creation, listing, free/busy queries, scheduling                 |
-| **Gmail**           | Email search, reading, sending, label and filter management            |
-| **Weather**         | Forecasts, current conditions, and alerts (NOAA + Open-Meteo)          |
+| Server              | Purpose                                                                      |
+| ------------------- | ---------------------------------------------------------------------------- |
+| **Oura Ring**       | Sleep, readiness, activity, HRV, and stress data (`mcp-servers/oura/`)       |
+| **WHOOP**           | Sleep performance, recovery, strain, and workout data (`mcp-servers/whoop/`) |
+| **Garmin Connect**  | Activities, training status, body composition, workouts, and more            |
+| **Google Calendar** | Event creation, listing, free/busy queries, scheduling                       |
+| **Gmail**           | Email search, reading, sending, label and filter management                  |
+| **Weather**         | Forecasts, current conditions, and alerts (NOAA + Open-Meteo)                |
 
 See [`mcp-servers/oura/README.md`](mcp-servers/oura/README.md) for Oura server setup.
+See [`mcp-servers/whoop/README.md`](mcp-servers/whoop/README.md) for WHOOP server setup.
+See [`docs/google-bot-account-setup.md`](docs/google-bot-account-setup.md) for giving ATLAS a dedicated Google identity through the repo-managed `google_bot` MCP server.
+
+Garmin-backed workout logging now has two reliability layers:
+
+- ATLAS merges repo `.claude/settings.local.json` into per-session Claude settings and mirrors the repo-enabled Garmin MCP server from `~/.mcp.json` into the managed Codex profile.
+- If direct `mcp__garmin__*` tools are still unavailable in a session, `garmin_workout_fallback.py` reads `~/.garminconnect` and returns normalized workout JSON for the logging skills.
+
+WHOOP is now repo-managed for both providers:
+
+- Codex gets the `whoop` server through the managed config generated by `agent_runner.py`.
+- Claude Code reads the same repo-owned WHOOP server from `~/.mcp.json`, which `mcp-servers/whoop/oauth_setup.py` can write automatically.
+
+ATLAS now uses a repo-managed `google_bot` MCP server for Gmail plus Google Calendar so the bot's Google identity stays separate from the ChatGPT/Codex account login.
 
 ## Skills
 
@@ -396,7 +420,7 @@ Reusable skill definitions in `.claude/skills/` that the active harness can invo
 | ------------------------- | ---------------------------------------------------------------------- |
 | `morning-briefing`        | Daily briefing with weather, schedule, training, medications, recovery |
 | `daily-summary`           | End-of-day review of activities and structured summary                 |
-| `health-pattern-monitor`  | Analyze 10-day Oura trends and alert only when noteworthy              |
+| `health-pattern-monitor`  | Analyze 10-day Oura + WHOOP trends and alert only when noteworthy      |
 | `log-workout`             | Parse freeform workout reports into structured vault logs              |
 | `log-cardio`              | Parse freeform cardio session reports into structured logs             |
 | `log-medication`          | Parse medication reports and log doses with validation                 |

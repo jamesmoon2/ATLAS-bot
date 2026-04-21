@@ -13,6 +13,7 @@ Usage:
 import argparse
 import asyncio
 import json
+import math
 import os
 import sys
 import tempfile
@@ -29,7 +30,7 @@ BOT_DIR = Path(__file__).parent.parent
 if str(BOT_DIR) not in sys.path:
     sys.path.insert(0, str(BOT_DIR))
 
-from agent_runner import run_job_prompt  # noqa: E402
+from agent_runner import get_agent_provider, run_job_prompt  # noqa: E402
 
 # Load environment variables from .env file
 load_dotenv(BOT_DIR / ".env")
@@ -67,6 +68,13 @@ def _atomic_write_text(path: Path, content: str) -> None:
 def save_state(state: dict) -> None:
     """Persist last run times."""
     _atomic_write_text(STATE_FILE, json.dumps(state, indent=2))
+
+
+def save_job_state(job_id: str, job_state: dict) -> None:
+    """Persist one job's state without clobbering concurrent job updates."""
+    state = load_state()
+    state[job_id] = job_state
+    save_state(state)
 
 
 async def _kill_process(process: asyncio.subprocess.Process) -> None:
@@ -107,6 +115,45 @@ def _is_expected_empty_output(output: str) -> bool:
         "No response generated (empty stdout, no stderr).",
         "No response generated (empty Codex output).",
     }
+
+
+def _get_codex_cron_timeout_multiplier() -> float:
+    """Return the timeout multiplier used for Codex-backed cron jobs."""
+    raw_value = os.getenv("ATLAS_CODEX_CRON_TIMEOUT_MULTIPLIER", "3")
+    try:
+        multiplier = float(raw_value)
+    except ValueError:
+        return 3.0
+    return multiplier if multiplier >= 1.0 else 3.0
+
+
+def _resolve_timeout_seconds(
+    job: dict,
+    *,
+    provider: str | None = None,
+    apply_codex_multiplier: bool = False,
+) -> int:
+    """Resolve the effective timeout for a job."""
+    try:
+        base_timeout = int(job.get("timeout_seconds", 180))
+    except (TypeError, ValueError):
+        base_timeout = 180
+
+    resolved_provider = provider or get_agent_provider()
+    provider_overrides = job.get("timeout_seconds_by_provider")
+    if isinstance(provider_overrides, dict):
+        override = provider_overrides.get(resolved_provider)
+        if override is not None:
+            try:
+                return int(override)
+            except (TypeError, ValueError):
+                pass
+
+    if apply_codex_multiplier and resolved_provider == "codex":
+        multiplier = _get_codex_cron_timeout_multiplier()
+        return max(base_timeout, math.ceil(base_timeout * multiplier))
+
+    return base_timeout
 
 
 def is_job_due(job: dict, state: dict, now: datetime) -> bool:
@@ -162,7 +209,7 @@ async def run_shell_command(job: dict) -> tuple[str, bool]:
     """Execute shell command directly. Returns (output, success)."""
     vault_path = os.getenv("VAULT_PATH", "")
     command = job["command"].replace("{vault_path}", vault_path).replace("{bot_dir}", str(BOT_DIR))
-    timeout = job.get("timeout_seconds", 180)
+    timeout = _resolve_timeout_seconds(job)
     process: asyncio.subprocess.Process | None = None
 
     try:
@@ -188,8 +235,10 @@ async def run_shell_command(job: dict) -> tuple[str, bool]:
 
 async def run_agent_job(job: dict) -> tuple[str, bool]:
     """Execute the active agent CLI with a job prompt. Returns (output, success)."""
-    timeout = job.get("timeout_seconds", 180)
+    provider = get_agent_provider()
+    timeout = _resolve_timeout_seconds(job, provider=provider, apply_codex_multiplier=True)
     model = job.get("model", "opus")
+    reasoning_effort = job.get("reasoning_effort")
 
     # Inject template variables into prompt
     tz = ZoneInfo(job.get("timezone", "America/Los_Angeles"))
@@ -209,6 +258,7 @@ async def run_agent_job(job: dict) -> tuple[str, bool]:
         timeout=timeout,
         bot_dir=str(BOT_DIR),
         vault_path=vault_path,
+        reasoning_effort=reasoning_effort,
     )
 
 
@@ -360,20 +410,20 @@ async def main(run_now: str | None = None):
         tz = ZoneInfo(job.get("timezone", "UTC"))
         job_state["last_run"] = now.astimezone(tz).isoformat()
         state[job_id] = job_state
-        save_state(state)
+        save_job_state(job_id, job_state)
 
         success = await execute_job(job)
         if success:
             job_state["failures"] = 0
             state[job_id] = job_state
-            save_state(state)
+            save_job_state(job_id, job_state)
             log(f"Job {job_id} completed successfully")
         else:
             job_state["failures"] = job_state.get("failures", 0) + 1
             # Clear last_run so it retries on next cron cycle
             job_state["last_run"] = None
             state[job_id] = job_state
-            save_state(state)
+            save_job_state(job_id, job_state)
 
             if job_state["failures"] >= 3:
                 log(

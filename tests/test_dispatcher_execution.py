@@ -106,6 +106,42 @@ class TestRunShellCommand:
 class TestRunAgentJob:
     """run_agent_job() invokes the shared provider runner with expanded prompt data."""
 
+    def test_resolve_timeout_seconds_uses_base_timeout_for_claude(self, monkeypatch):
+        monkeypatch.delenv("ATLAS_CODEX_CRON_TIMEOUT_MULTIPLIER", raising=False)
+
+        timeout = dispatcher._resolve_timeout_seconds(
+            {"timeout_seconds": 300},
+            provider="claude",
+            apply_codex_multiplier=True,
+        )
+
+        assert timeout == 300
+
+    def test_resolve_timeout_seconds_triples_codex_timeout_by_default(self, monkeypatch):
+        monkeypatch.delenv("ATLAS_CODEX_CRON_TIMEOUT_MULTIPLIER", raising=False)
+
+        timeout = dispatcher._resolve_timeout_seconds(
+            {"timeout_seconds": 300},
+            provider="codex",
+            apply_codex_multiplier=True,
+        )
+
+        assert timeout == 900
+
+    def test_resolve_timeout_seconds_honors_provider_override(self, monkeypatch):
+        monkeypatch.setenv("ATLAS_CODEX_CRON_TIMEOUT_MULTIPLIER", "3")
+
+        timeout = dispatcher._resolve_timeout_seconds(
+            {
+                "timeout_seconds": 300,
+                "timeout_seconds_by_provider": {"codex": 900},
+            },
+            provider="codex",
+            apply_codex_multiplier=True,
+        )
+
+        assert timeout == 900
+
     @pytest.mark.asyncio
     @patch("cron.dispatcher.run_job_prompt", return_value=("response", True))
     async def test_datetime_injection(self, mock_run_job):
@@ -150,6 +186,40 @@ class TestRunAgentJob:
         await dispatcher.run_agent_job(job)
 
         assert mock_run_job.call_args.kwargs["allowed_tools"] == ["Read", "Write", "Glob"]
+
+    @pytest.mark.asyncio
+    @patch("cron.dispatcher.run_job_prompt", return_value=("ok", True))
+    async def test_reasoning_effort_forwarded(self, mock_run_job):
+        job = {
+            "prompt": "test",
+            "allowed_tools": ["Read"],
+            "timeout_seconds": 60,
+            "model": "sonnet",
+            "timezone": "UTC",
+            "reasoning_effort": "medium",
+        }
+        await dispatcher.run_agent_job(job)
+
+        assert mock_run_job.call_args.kwargs["reasoning_effort"] == "medium"
+
+    @pytest.mark.asyncio
+    @patch("cron.dispatcher.get_agent_provider", return_value="codex")
+    @patch("cron.dispatcher.run_job_prompt", return_value=("ok", True))
+    async def test_codex_jobs_get_longer_timeout_budget(
+        self, mock_run_job, mock_provider, monkeypatch
+    ):
+        monkeypatch.delenv("ATLAS_CODEX_CRON_TIMEOUT_MULTIPLIER", raising=False)
+        job = {
+            "prompt": "test",
+            "allowed_tools": ["Read"],
+            "timeout_seconds": 120,
+            "model": "haiku",
+            "timezone": "UTC",
+        }
+
+        await dispatcher.run_agent_job(job)
+
+        assert mock_run_job.call_args.kwargs["timeout"] == 360
 
 
 class TestExecuteJob:

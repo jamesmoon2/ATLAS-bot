@@ -11,28 +11,31 @@ CHANNEL_ID="${DISCORD_CHANNEL_ID:?DISCORD_CHANNEL_ID not set}"
 BOT_DIR="${BOT_DIR:?BOT_DIR not set}"
 SESSION_DIR="${BOT_DIR}/sessions/${CHANNEL_ID}"
 ARCHIVE_DIR="${SESSION_DIR}/.archive/${DATE}"
+PROVIDER_PRIVATE_DIR="${ARCHIVE_DIR}/provider-private"
 
 echo "=== ATLAS Session Archive: ${DATE} ==="
 
 # 1. Create archive directory
 mkdir -p "${ARCHIVE_DIR}"
+mkdir -p "${PROVIDER_PRIVATE_DIR}"
 
-# 2. Archive current session harness config/state (.claude directory)
+# 2. Archive current session harness config/state
 if [ -d "${SESSION_DIR}/.claude" ]; then
     echo "Archiving .claude directory..."
-    cp -r "${SESSION_DIR}/.claude" "${ARCHIVE_DIR}/"
+    # Preserve symlinks like `.claude/skills` instead of recursively copying their targets.
+    cp -a "${SESSION_DIR}/.claude" "${ARCHIVE_DIR}/"
 else
     echo "No .claude directory found to archive"
 fi
 
-# 2b. Archive Codex session helper files if present
-for helper in AGENTS.md ATLAS-Calendar-Context.md ATLAS-Workout-Postwrite.md .atlas-codex-session-started; do
+# 2b. Archive ATLAS-managed session helper files if present
+for helper in AGENTS.md ATLAS-Calendar-Context.md ATLAS-Workout-Postwrite.md ATLAS-Session.json .atlas-codex-session-started; do
     if [ -e "${SESSION_DIR}/${helper}" ]; then
-        cp -r "${SESSION_DIR}/${helper}" "${ARCHIVE_DIR}/"
+        cp -a "${SESSION_DIR}/${helper}" "${ARCHIVE_DIR}/"
     fi
 done
 
-# 3. Archive Claude-specific persisted session state if present
+# 3. Archive provider-private persisted session state if present
 CLAUDE_PROJECTS_ROOT="${HOME}/.claude/projects"
 CLAUDE_PROJECT_DIR=""
 if [ -d "${CLAUDE_PROJECTS_ROOT}" ]; then
@@ -42,7 +45,7 @@ if [ -d "${CLAUDE_PROJECTS_ROOT}" ]; then
 fi
 if [ -n "${CLAUDE_PROJECT_DIR}" ] && [ -d "${CLAUDE_PROJECT_DIR}" ]; then
     echo "Archiving Claude project directory..."
-    cp -r "${CLAUDE_PROJECT_DIR}" "${ARCHIVE_DIR}/claude-project"
+    cp -a "${CLAUDE_PROJECT_DIR}" "${PROVIDER_PRIVATE_DIR}/claude-project"
 else
     echo "No Claude project directory found to archive"
 fi
@@ -60,6 +63,7 @@ fi
 rm -f "${SESSION_DIR}/AGENTS.md" \
     "${SESSION_DIR}/ATLAS-Calendar-Context.md" \
     "${SESSION_DIR}/ATLAS-Workout-Postwrite.md" \
+    "${SESSION_DIR}/ATLAS-Session.json" \
     "${SESSION_DIR}/.atlas-codex-session-started"
 
 echo "=== Archive complete: ${ARCHIVE_DIR} ==="

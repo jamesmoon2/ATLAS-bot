@@ -9,7 +9,9 @@
       "WebFetch(domain:publish.obsidian.md)",
       "Bash(tmux capture-pane:*)",
       "WebFetch(domain:raw.githubusercontent.com)",
-      "mcp__garmin__*"
+      "mcp__google_bot__*",
+      "mcp__garmin__*",
+      "mcp__whoop__*"
     ],
     "deny": [
       "Bash(rm:*)",
@@ -22,13 +24,7 @@
       "Bash(reboot:*)"
     ]
   },
-  "enabledMcpjsonServers": [
-    "weather",
-    "google-calendar",
-    "gmail",
-    "oura",
-    "whoop"
-  ],
+  "enabledMcpjsonServers": ["garmin", "weather", "google_bot", "oura", "whoop"],
   "disabledMcpjsonServers": [],
   "enableAllProjectMcpServers": true
 }

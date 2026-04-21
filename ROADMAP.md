@@ -75,12 +75,13 @@ Upgrade existing `stale_project_detector` to also scan for uncompleted tasks old
 
 ### 3.1 Garmin Connect MCP Server (Use Existing) ✅
 
-Integrated via the community [Taxuspt/garmin_mcp](https://github.com/Taxuspt/garmin_mcp) server. Garmin MCP tools (`mcp__garmin__*`) are allowed in both project-level settings (`.claude/settings.local.json`) and Discord channel session permissions (`bot.py`).
+Integrated via the community [Taxuspt/garmin_mcp](https://github.com/Taxuspt/garmin_mcp) server. Garmin MCP tools (`mcp__garmin__*`) are allowed in both project-level settings (`.claude/settings.local.json`) and Discord channel session permissions (`bot.py`), and Codex now mirrors the repo-enabled Garmin server from `~/.mcp.json` into its managed `CODEX_HOME` profile.
 
-**Remaining enhancements**:
+**Workout logging reliability**:
 
-- Update `.claude/skills/log-workout.md` to auto-fetch latest Garmin activity instead of requiring manual data entry
-- Create `hooks/garmin_workout_data.sh` (PostToolUse hook after workout log writes)
+- Session bootstrap preserves repo MCP enablement instead of overwriting it in channel-local `.claude/settings.local.json`
+- Workout logging uses direct Garmin MCP tools when available and falls back to `garmin_workout_fallback.py` when they are not
+- Agents are explicitly instructed never to launch `garmin-mcp` manually or attempt a raw MCP stdio handshake
 
 ### 3.2 Web Research Tools
 

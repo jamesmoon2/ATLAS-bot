@@ -54,6 +54,25 @@ class TestSaveState:
         dispatcher.save_state({"new": True})
         assert json.loads(f.read_text()) == {"new": True}
 
+    def test_save_job_state_merges_with_existing_entries(self, tmp_path, monkeypatch):
+        f = tmp_path / "state.json"
+        f.write_text(
+            json.dumps(
+                {
+                    "job_a": {"last_run": "2025-01-01T00:00:00", "failures": 0},
+                    "job_b": {"last_run": None, "failures": 2},
+                }
+            )
+        )
+        monkeypatch.setattr(dispatcher, "STATE_FILE", f)
+
+        dispatcher.save_job_state("job_a", {"last_run": "2025-01-02T00:00:00", "failures": 1})
+
+        assert json.loads(f.read_text()) == {
+            "job_a": {"last_run": "2025-01-02T00:00:00", "failures": 1},
+            "job_b": {"last_run": None, "failures": 2},
+        }
+
 
 class TestStateMigration:
     """Old string-format state entries are handled gracefully."""

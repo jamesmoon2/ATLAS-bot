@@ -34,6 +34,7 @@ class TestEnsureChannelSession:
 
     @pytest.fixture(autouse=True)
     def _patch(self, tmp_path, sessions_dir, monkeypatch):
+        monkeypatch.setenv("ATLAS_AGENT_PROVIDER", "claude")
         monkeypatch.setattr(bot, "SESSIONS_DIR", str(sessions_dir))
         bot_dir = tmp_path / "bot"
         (bot_dir / ".claude" / "skills").mkdir(parents=True)
@@ -71,8 +72,35 @@ class TestEnsureChannelSession:
         assert perms.exists()
         data = json.loads(perms.read_text())
         assert "permissions" in data
-        assert "mcp__codex_apps__google_calendar_*" in data["permissions"]["allow"]
-        assert "mcp__google-calendar__*" in data["permissions"]["allow"]
+        assert "mcp__google_bot__*" in data["permissions"]["allow"]
+        assert "mcp__whoop__*" in data["permissions"]["allow"]
+
+    def test_merges_repo_local_claude_settings_into_session_settings(self):
+        project_settings = self.bot_dir / ".claude" / "settings.local.json"
+        project_settings.write_text(
+            json.dumps(
+                {
+                    "permissions": {
+                        "allow": ["Bash", "mcp__garmin__*", "mcp__whoop__*"],
+                        "deny": ["Bash(rm:*)"],
+                    },
+                    "enabledMcpjsonServers": ["garmin"],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        bot.ensure_channel_session(100)
+
+        data = json.loads(
+            (self.sessions_dir / "100" / ".claude" / "settings.local.json").read_text()
+        )
+        assert "Bash" in data["permissions"]["allow"]
+        assert "mcp__garmin__*" in data["permissions"]["allow"]
+        assert "mcp__whoop__*" in data["permissions"]["allow"]
+        assert "mcp__google_bot__*" in data["permissions"]["allow"]
+        assert "Bash(rm:*)" in data["permissions"]["deny"]
+        assert data["enabledMcpjsonServers"] == ["garmin"]
 
     def test_writes_google_calendar_hook_matchers_for_both_namespaces(self):
         bot.ensure_channel_session(100)
@@ -80,10 +108,10 @@ class TestEnsureChannelSession:
         data = json.loads(settings.read_text())
         matchers = [hook["matcher"] for hook in data["hooks"]["PreToolUse"]]
 
+        assert "mcp__google_bot__create_event" in matchers
+        assert "mcp__google_bot__update_event" in matchers
         assert "mcp__codex_apps__google_calendar_create_event" in matchers
-        assert "mcp__codex_apps__google_calendar_update_event" in matchers
         assert "mcp__google-calendar__create-event" in matchers
-        assert "mcp__google-calendar__update-event" in matchers
 
     def test_idempotent(self):
         """Calling twice doesn't error and overwrites config."""
@@ -127,6 +155,9 @@ class TestEnsureChannelSession:
         contents = agents_file.read_text()
         assert "System prompt" in contents
         assert "Persistent context" in contents
+        assert "claudiamooney00@gmail.com" in contents
+        assert "jamesmoon2@gmail.com" in contents
+        assert "lorzem15@gmail.com" in contents
 
     def test_writes_codex_workout_helper(self):
         bot.ensure_channel_session(100)
@@ -134,19 +165,49 @@ class TestEnsureChannelSession:
         assert helper_file.exists()
         assert "workout log" in helper_file.read_text().lower()
 
+    def test_writes_garmin_workout_helper(self):
+        bot.ensure_channel_session(100)
+        helper_file = self.sessions_dir / "100" / "ATLAS-Garmin-Workout-Helper.md"
+        assert helper_file.exists()
+        contents = helper_file.read_text()
+        assert "mcp__garmin__" in contents
+        assert "garmin_workout_fallback.py" in contents
+
+    def test_writes_provider_neutral_session_metadata(self):
+        bot.ensure_channel_session(100)
+        metadata_file = self.sessions_dir / "100" / "ATLAS-Session.json"
+        assert metadata_file.exists()
+        data = json.loads(metadata_file.read_text())
+        assert data["active_provider"] == "claude"
+        assert data["channel_dir"].endswith("/100")
+        assert data["skills_dir"].endswith("/.claude/skills")
+
 
 class TestResetChannelSession:
     """reset_channel_session() removes session dirs."""
 
     @pytest.fixture(autouse=True)
-    def _patch(self, sessions_dir, monkeypatch):
+    def _patch(self, sessions_dir, monkeypatch, tmp_path):
+        monkeypatch.setenv("ATLAS_AGENT_PROVIDER", "claude")
         monkeypatch.setattr(bot, "SESSIONS_DIR", str(sessions_dir))
+        self.home_dir = tmp_path / "home"
+        monkeypatch.setenv("HOME", str(self.home_dir))
         self.sessions_dir = sessions_dir
 
     def test_removes_existing_session(self):
         bot.ensure_channel_session(100)
         assert bot.reset_channel_session(100) is True
         assert not (self.sessions_dir / "100").exists()
+
+    def test_removes_external_claude_session_storage(self):
+        channel_dir = self.sessions_dir / "100"
+        channel_dir.mkdir(parents=True, exist_ok=True)
+        claude_project_name = str(channel_dir.resolve()).replace("/", "-")
+        claude_session_dir = self.home_dir / ".claude" / "projects" / claude_project_name
+        claude_session_dir.mkdir(parents=True)
+
+        assert bot.reset_channel_session(100) is True
+        assert not claude_session_dir.exists()
 
     def test_returns_false_when_nothing_to_clear(self):
         assert bot.reset_channel_session(999) is False

@@ -7,15 +7,19 @@
       "timezone": "America/Los_Angeles",
       "enabled": true,
       "model": "opus",
-      "timeout_seconds": 180,
+      "timeout_seconds": 300,
+      "reasoning_effort": "medium",
       "allowed_tools": [
         "Read",
         "Skill",
         "atlas__google_calendar__search_events",
-        "atlas__google_calendar__get_profile",
+        "atlas__google_calendar__probe_auth",
         "mcp__oura__get_daily_sleep",
         "mcp__oura__get_daily_readiness",
         "mcp__oura__get_daily_activity",
+        "mcp__whoop__get_daily_sleep",
+        "mcp__whoop__get_daily_recovery",
+        "mcp__whoop__get_daily_cycle",
         "mcp__weather__get_forecast",
         "mcp__weather__get_alerts"
       ],
@@ -42,6 +46,9 @@
         "mcp__oura__get_daily_sleep",
         "mcp__oura__get_daily_readiness",
         "mcp__oura__get_daily_activity",
+        "mcp__whoop__get_daily_sleep",
+        "mcp__whoop__get_daily_recovery",
+        "mcp__whoop__get_daily_cycle",
         "mcp__oura__analyze_health_trends",
         "mcp__oura__calculate_stress_resilience",
         "atlas__google_calendar__search_events",
@@ -64,7 +71,7 @@
       "model": "haiku",
       "timeout_seconds": 60,
       "allowed_tools": [
-        "atlas__google_calendar__get_profile",
+        "atlas__google_calendar__probe_auth",
         "atlas__gmail__list_labels"
       ],
       "prompt": "Perform a health check on MCP integrations.\n\n**Current Time:** {current_datetime}\n\n## Instructions\n\n1. **Google Calendar** - Call a lightweight read-only Google Calendar tool available in the active provider to verify OAuth is valid\n2. **Gmail** - Call a lightweight read-only Gmail labels/profile tool available in the active provider to verify OAuth is valid\n\n## Output Format\n\nIf all checks pass:\n```\nMCP Health Check: All systems operational\n- Google Calendar: OK\n- Gmail: OK\n```\n\nIf any check fails, report the specific error:\n```\nMCP Health Check: ISSUES DETECTED\n- Google Calendar: [OK or error message]\n- Gmail: [OK or error message]\n\nAction Required: Re-run authentication for failed services:\nGOOGLE_OAUTH_CREDENTIALS=\"$HOME/.config/google-calendar-mcp/gcp-oauth.keys.json\" npx @cocal/google-calendar-mcp auth\n```",
@@ -97,9 +104,10 @@
       "timezone": "America/Los_Angeles",
       "enabled": true,
       "model": "opus",
-      "timeout_seconds": 180,
+      "timeout_seconds": 300,
+      "reasoning_effort": "medium",
       "allowed_tools": ["Read", "Write", "Edit", "Glob", "Skill"],
-      "prompt": "Run the daily-summary skill for today.\n\nAfter writing the daily summary, review today's conversations and update {vault_path}/System/ATLAS-Context.md if any of the following occurred:\n\n1. **Corrections Log:** Any factual errors ATLAS made today \u2192 append to table\n2. **Active Threads:** Project status changes, new threads started, old threads completed \u2192 update section\n3. **Preferences Learned:** New interaction preferences expressed \u2192 append to section\n4. **Stable Facts:** Any new stable facts learned (weight change, new baseline, etc.) \u2192 update table\n5. **Health Baselines:** Changes to training, HRV, sleep patterns \u2192 update table\n\nOnly modify sections with actual changes. Do not rewrite unchanged sections.\nSkip this step if nothing changed today.",
+      "prompt": "Run the daily-summary skill for today.\n\nWork efficiently: prioritize today's session artifacts, today's daily note, and the smallest set of health/context files needed to produce an accurate summary. Keep the written summary concise and avoid broad vault exploration unless a key fact is missing.\n\nAfter writing the daily summary, review today's conversations and update {vault_path}/System/ATLAS-Context.md if any of the following occurred:\n\n1. **Corrections Log:** Any factual errors ATLAS made today \u2192 append to table\n2. **Active Threads:** Project status changes, new threads started, old threads completed \u2192 update section\n3. **Preferences Learned:** New interaction preferences expressed \u2192 append to section\n4. **Stable Facts:** Any new stable facts learned (weight change, new baseline, etc.) \u2192 update table\n5. **Health Baselines:** Changes to training, HRV, sleep patterns \u2192 update table\n\nOnly modify sections with actual changes. Do not rewrite unchanged sections.\nSkip this step if nothing changed today.",
       "notify": {
         "type": "webhook",
         "url_env": "DISCORD_WEBHOOK_URL",
@@ -109,7 +117,7 @@
     {
       "id": "session_archive",
       "name": "Session Archive & Reset",
-      "schedule": "59 23 * * *",
+      "schedule": "5 0 * * *",
       "timezone": "America/Los_Angeles",
       "enabled": true,
       "command": "{bot_dir}/cron/session_archive.sh",
@@ -136,7 +144,11 @@
       "schedule": "0 8 * * 0",
       "timezone": "America/Los_Angeles",
       "enabled": true,
-      "command": "{bot_dir}/cron/context_drift.sh",
+      "model": "sonnet",
+      "timeout_seconds": 300,
+      "reasoning_effort": "medium",
+      "allowed_tools": ["Read", "Glob"],
+      "prompt": "Analyze context drift between stated decisions and actual execution over the last 7 days.\n\nRead `{vault_path}/Areas/Decision-Log.md`, recent daily summaries from `{vault_path}/Daily/`, `{vault_path}/Areas/Health/Training-State.md`, and any other clearly relevant project or task notes.\nOnly flag meaningful patterns that have persisted for more than 7 days.\nKeep the report concise and Discord-friendly: at most 3 drift items, each with Decision, Reality, Duration, and Action, followed by a short Alignment Check and Summary.\n\n**Current Time:** {current_datetime}",
       "notify": {
         "type": "webhook",
         "url_env": "DISCORD_WEBHOOK_URL",
@@ -164,9 +176,10 @@
       "timezone": "America/Los_Angeles",
       "enabled": true,
       "model": "haiku",
-      "timeout_seconds": 60,
+      "timeout_seconds": 120,
+      "reasoning_effort": "low",
       "allowed_tools": ["Read", "Write"],
-      "prompt": "Compare the medication vault file against the bot's operational config and update the config if they've drifted.\n\n**Current Time:** {current_datetime}\n\n## Instructions\n\n1. Read `{vault_path}/Areas/Health/Medications.md` \u2014 this is the source of truth for medication names, doses, schedules, and protocols.\n2. Read `{bot_dir}/meds.json` \u2014 this is the operational config used by the bot for reminders, logging, and briefings.\n3. Compare them. Check for:\n   - New medications in the vault not in the config\n   - Dose changes (e.g., 2mg \u2192 4mg)\n   - Schedule changes (e.g., different days/times)\n   - Discontinued medications (in config but removed from vault)\n4. If they match: output `NO_ALERT`\n5. If they differ: update `{bot_dir}/meds.json` to match the vault. Preserve the JSON schema (id, name, display_name, location, vault_table_marker, entry_format, schedule). Output a summary of what changed.",
+      "prompt": "Compare the medication vault file against the bot's operational config and update the config if they've drifted.\n\n**Current Time:** {current_datetime}\n\n## Instructions\n\n1. Read `{vault_path}/Areas/Health/Medications.md` \u2014 this is the source of truth for medication names, doses, schedules, and protocols.\n2. Read `{bot_dir}/meds.json` \u2014 this is the operational config used by the bot for reminders, logging, and briefings.\n3. Focus on medications with an active or current protocol right now. Ignore historical dosing logs, supply notes, future transition plans, and medications explicitly marked completed/discontinued unless that status means an existing config entry should be removed.\n4. Treat planned future medications (for example sections that say they start later) as not yet active; do not add them to the config until the vault marks them current.\n5. Compare the active/current medications against the config. Check for:\n   - New active medications in the vault not in the config\n   - Dose changes (e.g., 2mg \u2192 4mg)\n   - Reminder schedule changes (days/times)\n   - Medications in the config that are no longer active\n6. If they match: output `NO_ALERT` and nothing else.\n7. If they differ: update `{bot_dir}/meds.json` to match the vault. Preserve the JSON schema (id, name, display_name, location, vault_table_marker, entry_format, schedule). Output a concise summary of what changed.",
       "notify": {
         "type": "webhook",
         "url_env": "DISCORD_WEBHOOK_URL",
@@ -176,7 +189,7 @@
     },
     {
       "id": "oura_context_update",
-      "name": "Oura Context Update",
+      "name": "Recovery Context Update",
       "schedule": "0 10 * * *",
       "timezone": "America/Los_Angeles",
       "enabled": true,
@@ -187,10 +200,13 @@
         "Edit",
         "Glob",
         "mcp__oura__get_daily_sleep",
-        "mcp__oura__get_daily_readiness"
+        "mcp__oura__get_daily_readiness",
+        "mcp__whoop__get_daily_sleep",
+        "mcp__whoop__get_daily_recovery",
+        "mcp__whoop__get_daily_cycle"
       ],
       "empty_output_ok": true,
-      "prompt": "Check if today's workout log exists and is missing Oura context. If so, fetch today's Oura data (sleep from last night, readiness this morning) and update the Context section silently. No output or notification unless there's an error.\n\n**Current Time:** {current_datetime}\n\n## Instructions\n\n1. Check if file exists: `{vault_path}/Areas/Health/Workout-Logs/YYYY-MM-DD.md` (where date = today)\n2. If file exists, read it and check if the \"Context\" section contains Oura data\n3. If Oura data missing or placeholder present:\n   - Call `get_daily_sleep` for today\n   - Call `get_daily_readiness` for today\n   - Update the Context section with:\n     ```\n     - **Recent Recovery:** Sleep [X], Readiness [Y], HRV Balance [Z]/100 (Oura [date])\n     ```\n4. If no workout log exists or Oura data already present, skip silently\n\n## Expected Behavior\n\n- **Success (update made):** No output\n- **Success (no update needed):** No output  \n- **Error (Oura data unavailable):** Log error but don't fail\n- **Error (file operations failed):** Report error",
+      "prompt": "Check if today's workout log exists and is missing recovery context. If so, fetch today's Oura and WHOOP data and update the Context section silently. No output or notification unless there's an error.\n\n**Current Time:** {current_datetime}\n\n## Instructions\n\n1. Check if file exists: `{vault_path}/Areas/Health/Workout-Logs/YYYY-MM-DD.md` (where date = today)\n2. If file exists, read it and check if the \"Context\" section already contains both Oura and WHOOP recovery data\n3. If recovery data is missing or placeholder text is present:\n   - Call Oura `get_daily_sleep` for today\n   - Call Oura `get_daily_readiness` for today\n   - Call WHOOP `get_daily_sleep` for today\n   - Call WHOOP `get_daily_recovery` for today\n   - Call WHOOP `get_daily_cycle` for today\n   - Update the Context section with:\n     ```\n     - **Recent Recovery (Oura):** Sleep [X], Readiness [Y], HRV Balance [Z]/100 (Oura [date])\n     - **Recent Recovery (WHOOP):** Sleep Performance [A]%, Recovery [B], Strain [C] (WHOOP [date])\n     ```\n4. If no workout log exists or both Oura and WHOOP recovery data are already present, skip silently\n\n## Expected Behavior\n\n- **Success (update made):** No output\n- **Success (no update needed):** No output  \n- **Error (one provider unavailable):** Continue with the other provider if possible and stay silent\n- **Error (both providers unavailable or file operations failed):** Report error",
       "notify": null
     },
     {
@@ -206,7 +222,10 @@
         "Skill",
         "mcp__oura__get_daily_sleep",
         "mcp__oura__get_daily_readiness",
-        "mcp__oura__get_daily_activity"
+        "mcp__oura__get_daily_activity",
+        "mcp__whoop__get_daily_sleep",
+        "mcp__whoop__get_daily_recovery",
+        "mcp__whoop__get_daily_cycle"
       ],
       "prompt": "Run the health-pattern-monitor skill.\n\n**Current Time:** {current_datetime}",
       "notify": {
@@ -223,9 +242,10 @@
       "timezone": "America/Los_Angeles",
       "enabled": true,
       "model": "sonnet",
-      "timeout_seconds": 180,
-      "allowed_tools": ["Read", "Glob", "Skill"],
-      "prompt": "Run the second-brain-librarian skill using the latest vault index and any recent notes needed for context.\n\n**Current Time:** {current_datetime}",
+      "timeout_seconds": 300,
+      "reasoning_effort": "medium",
+      "allowed_tools": ["Read", "Glob"],
+      "prompt": "Generate a concise second-brain librarian digest using the latest vault index.\nUse the preloaded vault index as the primary source and only read additional notes if the index is genuinely insufficient.\nKeep the output brief and structured with these sections: Recent Notes, Open Loops, Orphan Notes, Stale Notes, Link Opportunities, Recommended Actions.\n\n**Current Time:** {current_datetime}",
       "notify": {
         "type": "webhook",
         "url_env": "DISCORD_WEBHOOK_URL",
@@ -247,7 +267,10 @@
         "Skill",
         "mcp__oura__get_daily_sleep",
         "mcp__oura__get_daily_readiness",
-        "mcp__oura__get_daily_activity"
+        "mcp__oura__get_daily_activity",
+        "mcp__whoop__get_daily_sleep",
+        "mcp__whoop__get_daily_recovery",
+        "mcp__whoop__get_daily_cycle"
       ],
       "prompt": "Run the weekly-review skill for the past 7 days.\n\n**Current Time:** {current_datetime}",
       "notify": {
