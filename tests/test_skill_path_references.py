@@ -50,3 +50,13 @@ def test_daily_summary_skill_targets_plain_daily_note_filename():
 
     assert "/home/jmooney/vault/Daily/[YYYY-MM-DD].md" in text
     assert "-atlas-summary.md" not in text
+
+
+def test_workout_logging_uses_status_entries_not_training_checklists():
+    skill_text = (SKILLS_DIR / "log-workout.md").read_text(encoding="utf-8")
+    hook_text = (ROOT / "hooks" / "workout_oura_data.sh").read_text(encoding="utf-8")
+
+    assert "status line" in skill_text
+    assert "checklist after creating the log" not in skill_text
+    assert "'This Week' checklist" not in hook_text
+    assert "workout checkbox" not in hook_text
