@@ -37,7 +37,7 @@ CODEX_AUTH_FILENAME = "auth.json"
 BWRAP_LOOPBACK_ERROR = "bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted"
 CODEX_SANDBOX_MODES = {"read-only", "workspace-write", "danger-full-access"}
 CODEX_CURATED_PLUGINS = ("github@openai-curated",)
-CODEX_MANAGED_MCP_SERVER_NAMES = {"google_bot", "oura", "weather", "whoop"}
+CODEX_MANAGED_MCP_SERVER_NAMES = {"garmin", "google_bot", "oura", "weather", "whoop"}
 CODEX_EXTERNAL_MCP_SERVER_SKIP_NAMES = {
     *CODEX_MANAGED_MCP_SERVER_NAMES,
     "github",
@@ -698,6 +698,15 @@ def _build_codex_config(bot_dir: str, vault_path: str) -> str:
         str(bot_path / "mcp-servers" / "oura" / "mcp_server.py"),
     )
     default_bot_python = bot_path / "venv" / "bin" / "python3"
+    default_garmin_python = default_bot_python
+    garmin_python = os.getenv(
+        "GARMIN_PYTHON",
+        str(default_garmin_python if default_garmin_python.exists() else Path(sys.executable)),
+    )
+    garmin_script = os.getenv(
+        "GARMIN_SCRIPT",
+        str(bot_path / "mcp-servers" / "garmin" / "mcp_server.py"),
+    )
     google_bot_python = os.getenv(
         "GOOGLE_BOT_PYTHON",
         str(default_bot_python if default_bot_python.exists() else Path(sys.executable)),
@@ -750,6 +759,17 @@ def _build_codex_config(bot_dir: str, vault_path: str) -> str:
                 "GOOGLE_BOT_TOKEN_FILE": str(
                     bot_path / "mcp-servers" / "credentials" / "google-bot-tokens.json"
                 ),
+            },
+        },
+    )
+    _append_codex_mcp_server_block(
+        lines,
+        "garmin",
+        {
+            "command": garmin_python,
+            "args": [garmin_script],
+            "env": {
+                "GARMIN_TOKEN_DIR": str(bot_path / "mcp-servers" / "credentials" / "garminconnect"),
             },
         },
     )

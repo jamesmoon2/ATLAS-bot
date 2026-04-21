@@ -329,6 +329,7 @@ def test_build_codex_env_uses_managed_bot_home(tmp_path, monkeypatch):
     config = config_path.read_text()
     assert '[plugins."github@openai-curated"]' in config
     assert '[mcp_servers."google_bot"]' in config
+    assert '[mcp_servers."garmin"]' in config
     assert '[mcp_servers."oura"]' in config
     assert '[mcp_servers."whoop"]' in config
     assert '[mcp_servers."weather"]' in config
@@ -376,7 +377,9 @@ def test_codex_command_prefix_uses_configured_sandbox_mode(tmp_path, monkeypatch
     assert prefix[sandbox_index + 1] == "danger-full-access"
 
 
-def test_build_codex_config_inherits_repo_enabled_external_mcp_servers(tmp_path, monkeypatch):
+def test_build_codex_config_uses_managed_garmin_and_ignores_external_duplicate(
+    tmp_path, monkeypatch
+):
     home_dir = tmp_path / "home"
     home_dir.mkdir()
     monkeypatch.setenv("HOME", str(home_dir))
@@ -422,8 +425,11 @@ def test_build_codex_config_inherits_repo_enabled_external_mcp_servers(tmp_path,
     config = agent_runner._build_codex_config(str(bot_dir), str(tmp_path / "vault"))
 
     assert '[mcp_servers."garmin"]' in config
-    assert 'command = "/usr/bin/uvx"' in config
-    assert 'args = ["--from", "git+https://example.invalid/garmin_mcp", "garmin-mcp"]' in config
+    assert 'command = "/usr/bin/uvx"' not in config
+    assert "git+https://example.invalid/garmin_mcp" not in config
+    assert "args = [" in config
+    assert "mcp-servers/garmin/mcp_server.py" in config
     assert '[mcp_servers."garmin".env]' in config
-    assert '"GARMIN_REGION" = "us"' in config
+    assert '"GARMIN_TOKEN_DIR"' in config
+    assert '"GARMIN_REGION" = "us"' not in config
     assert '[mcp_servers."google_bot"]' in config

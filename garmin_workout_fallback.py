@@ -6,7 +6,7 @@ from __future__ import annotations
 import argparse
 import importlib
 import json
-import time
+import os
 import warnings
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
@@ -14,7 +14,24 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Protocol
 
-DEFAULT_GARMIN_AUTH_HOME = Path.home() / ".garminconnect"
+REPO_GARMIN_AUTH_HOME = (
+    Path(__file__).resolve().parent / "mcp-servers" / "credentials" / "garminconnect"
+)
+LEGACY_GARMIN_AUTH_HOME = Path.home() / ".garminconnect"
+
+
+def _resolve_default_auth_home() -> Path:
+    explicit = os.getenv("GARMIN_TOKEN_DIR")
+    if explicit:
+        return Path(explicit).expanduser()
+    if (REPO_GARMIN_AUTH_HOME / "oauth1_token.json").exists() and (
+        REPO_GARMIN_AUTH_HOME / "oauth2_token.json"
+    ).exists():
+        return REPO_GARMIN_AUTH_HOME
+    return LEGACY_GARMIN_AUTH_HOME
+
+
+DEFAULT_GARMIN_AUTH_HOME = _resolve_default_auth_home()
 GARMIN_ACTIVITY_TOOL_NAMES = (
     "mcp__garmin__get_activities_fordate",
     "mcp__garmin__get_activity",
@@ -205,32 +222,12 @@ def _ensure_auth_files(auth_home: Path) -> None:
     if missing_files:
         raise GarminTokensMissingError(
             (f"Garmin tokens were not found in {auth_home}. Missing: {', '.join(missing_files)}."),
-            hint="Reauthenticate the local Garmin integration so ~/.garminconnect is repopulated.",
-        )
-
-
-def _ensure_refresh_token_still_valid(auth_home: Path) -> None:
-    oauth2_path = auth_home / "oauth2_token.json"
-    token_payload = _load_json_file(oauth2_path)
-    refresh_expires_at = token_payload.get("refresh_token_expires_at")
-    if refresh_expires_at is None:
-        return
-
-    try:
-        expires_at = float(refresh_expires_at)
-    except (TypeError, ValueError):
-        return
-
-    if expires_at <= time.time():
-        raise GarminTokensExpiredError(
-            f"Garmin auth in {auth_home} has expired.",
-            hint="Refresh the local Garmin login so ~/.garminconnect receives new tokens.",
+            hint="Reauthenticate the local Garmin integration so the configured token directory is repopulated.",
         )
 
 
 def _build_client(auth_home: Path) -> GarminClientProtocol:
     _ensure_auth_files(auth_home)
-    _ensure_refresh_token_still_valid(auth_home)
 
     try:
         with warnings.catch_warnings():
@@ -244,11 +241,13 @@ def _build_client(auth_home: Path) -> GarminClientProtocol:
 
     client = garth_http.Client()
     try:
+        # Garmin can exchange a fresh OAuth2 access token from the stored OAuth1 token,
+        # so we trust the real client load/request path instead of cached refresh metadata.
         client.load(str(auth_home))
     except Exception as exc:  # pragma: no cover - exercised via higher-level tests
         raise GarminTokensExpiredError(
             f"Garmin auth in {auth_home} could not be loaded cleanly: {exc}",
-            hint="Refresh the local Garmin login so ~/.garminconnect contains a valid session.",
+            hint="Refresh the local Garmin login so the configured token directory contains a valid session.",
         ) from exc
 
     return client
@@ -283,7 +282,7 @@ def _connectapi(
         if _is_auth_error(message):
             raise GarminTokensExpiredError(
                 f"Garmin auth in {auth_home} is no longer valid: {message}",
-                hint="Refresh the local Garmin login so ~/.garminconnect contains a valid session.",
+                hint="Refresh the local Garmin login so the configured token directory contains a valid session.",
             ) from exc
         if optional and ("404" in message or "not found" in message.lower()):
             return None
@@ -591,7 +590,7 @@ def fetch_workout_snapshot(
         if _is_auth_error(str(exc)):
             raise GarminTokensExpiredError(
                 f"Garmin auth in {resolved_auth_home} is no longer valid: {exc}",
-                hint="Refresh the local Garmin login so ~/.garminconnect contains a valid session.",
+                hint="Refresh the local Garmin login so the configured token directory contains a valid session.",
             ) from exc
         warnings_list.append(f"Garmin profile unavailable: {exc}")
 

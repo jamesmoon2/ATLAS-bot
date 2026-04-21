@@ -167,7 +167,7 @@ def test_fetch_workout_snapshot_missing_tokens_fails_fast(tmp_path):
     assert exc_info.value.hint is not None
 
 
-def test_fetch_workout_snapshot_expired_tokens_fails_fast(tmp_path):
+def test_build_client_ignores_stale_refresh_metadata(tmp_path, monkeypatch):
     auth_home = Path(tmp_path)
     (auth_home / "oauth1_token.json").write_text(
         json.dumps({"oauth_token": "a", "oauth_token_secret": "b"}),
@@ -178,11 +178,24 @@ def test_fetch_workout_snapshot_expired_tokens_fails_fast(tmp_path):
         encoding="utf-8",
     )
 
-    with pytest.raises(garmin_fallback.GarminTokensExpiredError) as exc_info:
-        garmin_fallback.fetch_workout_snapshot(activity_date="2026-04-15", auth_home=auth_home)
+    class _LoadedClient:
+        def load(self, path: str) -> None:
+            assert path == str(auth_home)
 
-    assert "expired" in str(exc_info.value).lower()
-    assert exc_info.value.hint is not None
+    class _FakeGarthHttp:
+        @staticmethod
+        def Client() -> _LoadedClient:
+            return _LoadedClient()
+
+    def fake_import_module(name: str):
+        assert name == "garth.http"
+        return _FakeGarthHttp
+
+    monkeypatch.setattr(garmin_fallback.importlib, "import_module", fake_import_module)
+
+    client = garmin_fallback._build_client(auth_home)
+
+    assert isinstance(client, _LoadedClient)
 
 
 def test_choose_garmin_workout_source_prefers_mcp_tools(tmp_path):

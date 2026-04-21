@@ -36,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Librarian SessionStart hook (`hooks/librarian_context.sh`) for compact vault context injection
 - `vault_index_refresh` and `librarian_digest` cron jobs
 - Garmin MCP tool permissions for cron and Discord sessions
+- Repo-managed Garmin MCP server with local token import/setup flow
 - Automatic skills symlink creation in Discord channel sessions for skill discovery
 - `suppress_if_contains` feature in cron dispatcher for silent-unless-noteworthy jobs
 - `run_cron.sh` entry point called every minute via system crontab
@@ -47,6 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `user-profile.json` config file for location data (gitignored), with `.json.example` template
 - Managed Codex profile now enables Gmail alongside Google Calendar, and Discord session permissions now allow Gmail tools for interactive bot use
+- Garmin moved from an external mirrored MCP server to a repo-managed local server with shared token resolution for Codex, Claude Code, and the fallback helper
 - `morning-briefing` skill reads weather coordinates from `user-profile.json` instead of hardcoding
 - `log-medication` skill reads medication names, schedules, and intervals from `meds.json` instead of hardcoding
 - `weekly-training-planner` skill reads program template (exercises, volume, RPE, rest periods) from Training-State.md and personal constraints (equipment, injuries, HR, schedule) from Training-Profile.md instead of hardcoding
