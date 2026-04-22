@@ -369,7 +369,7 @@ When `ATLAS_AGENT_PROVIDER=codex`, agent-backed cron jobs automatically get a lo
 | Daily Summary           | 11:55 PM daily  | End-of-day review, context file updates                    |
 | Session Archive         | 12:05 AM daily  | Archive session data, reset after the nightly summary      |
 | Weekly Training Planner | 12:00 PM Sun    | Plan next week's training based on recovery and calendar   |
-| MCP Health Check        | 6:00 AM Mon     | Validate OAuth tokens for Calendar and Gmail               |
+| MCP Health Check        | 6:00 AM Mon     | Validate auth for Calendar, Gmail, Oura, and Garmin        |
 | Stale Project Detector  | 8:00 AM Sat     | Scan vault for projects untouched 30+ days                 |
 | Context Drift Detector  | 8:00 AM Sun     | Check ATLAS-Context.md for consistency                     |
 | Health Pattern Monitor  | 10:30 AM daily  | Oura + WHOOP trend analysis, alerts only when noteworthy   |

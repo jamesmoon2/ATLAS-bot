@@ -80,6 +80,12 @@ def test_calendar_jobs_use_atlas_mcp_aliases():
     assert "atlas__google_calendar__delete_event" in weekly_job["allowed_tools"]
     assert "atlas__google_calendar__probe_auth" in health_job["allowed_tools"]
     assert "atlas__gmail__list_labels" in health_job["allowed_tools"]
+    assert "mcp__oura__get_personal_info" in health_job["allowed_tools"]
+    assert "mcp__garmin__get_profile" in health_job["allowed_tools"]
+    assert "**Oura**" in health_job["prompt"]
+    assert "**Garmin**" in health_job["prompt"]
+    assert "python mcp-servers/oura/oauth_setup.py" in health_job["prompt"]
+    assert "python mcp-servers/garmin/oauth_setup.py" in health_job["prompt"]
 
 
 def test_date_sensitive_cron_skills_use_prompt_time_and_unattended_guidance():

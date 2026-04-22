@@ -72,9 +72,11 @@
       "timeout_seconds": 60,
       "allowed_tools": [
         "atlas__google_calendar__probe_auth",
-        "atlas__gmail__list_labels"
+        "atlas__gmail__list_labels",
+        "mcp__oura__get_personal_info",
+        "mcp__garmin__get_profile"
       ],
-      "prompt": "Perform a health check on MCP integrations.\n\n**Current Time:** {current_datetime}\n\n## Instructions\n\n1. **Google Calendar** - Call a lightweight read-only Google Calendar tool available in the active provider to verify OAuth is valid\n2. **Gmail** - Call a lightweight read-only Gmail labels/profile tool available in the active provider to verify OAuth is valid\n\n## Output Format\n\nIf all checks pass:\n```\nMCP Health Check: All systems operational\n- Google Calendar: OK\n- Gmail: OK\n```\n\nIf any check fails, report the specific error:\n```\nMCP Health Check: ISSUES DETECTED\n- Google Calendar: [OK or error message]\n- Gmail: [OK or error message]\n\nAction Required: Re-run authentication for failed services:\nGOOGLE_OAUTH_CREDENTIALS=\"$HOME/.config/google-calendar-mcp/gcp-oauth.keys.json\" npx @cocal/google-calendar-mcp auth\n```",
+      "prompt": "Perform a health check on MCP integrations.\n\n**Current Time:** {current_datetime}\n\n## Instructions\n\n1. **Google Calendar** - Call a lightweight read-only Google Calendar tool available in the active provider to verify OAuth is valid\n2. **Gmail** - Call a lightweight read-only Gmail labels/profile tool available in the active provider to verify OAuth is valid\n3. **Oura** - Call `mcp__oura__get_personal_info` to verify OAuth is valid\n4. **Garmin** - Call `mcp__garmin__get_profile` to verify saved Garmin auth is valid\n\n## Output Format\n\nIf all checks pass:\n```\nMCP Health Check: All systems operational\n- Google Calendar: OK\n- Gmail: OK\n- Oura: OK\n- Garmin: OK\n```\n\nIf any check fails, report the specific error:\n```\nMCP Health Check: ISSUES DETECTED\n- Google Calendar: [OK or error message]\n- Gmail: [OK or error message]\n- Oura: [OK or error message]\n- Garmin: [OK or error message]\n\nAction Required: Re-run authentication for failed services:\n- Google Calendar: GOOGLE_OAUTH_CREDENTIALS=\"$HOME/.config/google-calendar-mcp/gcp-oauth.keys.json\" npx @cocal/google-calendar-mcp auth\n- Oura: python mcp-servers/oura/oauth_setup.py\n- Garmin: python mcp-servers/garmin/oauth_setup.py\n```\n\nOnly include action steps for services that actually failed.",
       "notify": {
         "type": "webhook",
         "url_env": "DISCORD_WEBHOOK_URL",
