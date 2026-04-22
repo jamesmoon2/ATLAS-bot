@@ -185,7 +185,9 @@ def _authenticate_to_directory(
     client = garmin_client_cls(email=email, password=password, is_cn=is_cn, prompt_mfa=_get_mfa)
 
     try:
-        client.login()
+        # Pass the target token directory into login so current garminconnect
+        # versions persist oauth tokens using their supported tokenstore flow.
+        client.login(str(token_dir))
     except GarminRateLimitError as exc:
         raise SetupError(
             "Garmin rate limited login attempts. Wait a few minutes before retrying instead of "
@@ -196,8 +198,6 @@ def _authenticate_to_directory(
     except GarminConnectionProblem as exc:
         raise SetupError(f"Garmin connection failed: {exc}") from exc
 
-    token_dir.mkdir(parents=True, exist_ok=True)
-    client.garth.dump(str(token_dir))
     return token_dir, client.get_full_name()
 
 
