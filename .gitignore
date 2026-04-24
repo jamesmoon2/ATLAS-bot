@@ -6,6 +6,7 @@ __pycache__/
 *.egg-info/
 .DS_Store
 ._*
+uv.lock
 sessions/
 *.log
 
