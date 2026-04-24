@@ -12,11 +12,12 @@ Usage:
 
 import argparse
 import asyncio
+import contextlib
+import fcntl
 import json
 import math
 import os
 import sys
-import tempfile
 from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -31,6 +32,7 @@ if str(BOT_DIR) not in sys.path:
     sys.path.insert(0, str(BOT_DIR))
 
 from agent_runner import get_agent_provider, run_job_prompt  # noqa: E402
+from atlas_utils import atomic_write_text, kill_process  # noqa: E402
 
 # Load environment variables from .env file
 load_dotenv(BOT_DIR / ".env")
@@ -56,31 +58,34 @@ def load_state() -> dict:
     return {}
 
 
-def _atomic_write_text(path: Path, content: str) -> None:
-    """Atomically replace a text file."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with tempfile.NamedTemporaryFile("w", dir=path.parent, delete=False, encoding="utf-8") as tmp:
-        tmp.write(content)
-        temp_path = Path(tmp.name)
-    temp_path.replace(path)
+def _state_lock_file() -> Path:
+    """Return the lock path paired with the current state file."""
+    return STATE_FILE.with_name(f"{STATE_FILE.name}.lock")
+
+
+@contextlib.contextmanager
+def locked_state() -> dict:
+    """Load state while holding the dispatcher state lock."""
+    lock_path = _state_lock_file()
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(lock_path, "w", encoding="utf-8") as lock_file:
+        fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
+        try:
+            yield load_state()
+        finally:
+            fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
 
 def save_state(state: dict) -> None:
     """Persist last run times."""
-    _atomic_write_text(STATE_FILE, json.dumps(state, indent=2))
+    atomic_write_text(STATE_FILE, json.dumps(state, indent=2))
 
 
 def save_job_state(job_id: str, job_state: dict) -> None:
     """Persist one job's state without clobbering concurrent job updates."""
-    state = load_state()
-    state[job_id] = job_state
-    save_state(state)
-
-
-async def _kill_process(process: asyncio.subprocess.Process) -> None:
-    """Terminate and reap a subprocess."""
-    process.kill()
-    await process.communicate()
+    with locked_state() as state:
+        state[job_id] = job_state
+        save_state(state)
 
 
 def _combine_process_output(stdout: bytes, stderr: bytes) -> str:
@@ -227,7 +232,7 @@ async def run_shell_command(job: dict) -> tuple[str, bool]:
 
     except asyncio.TimeoutError:
         if process is not None:
-            await _kill_process(process)
+            await kill_process(process)
         return f"Command timed out after {timeout} seconds.", False
     except Exception as e:
         return f"Error executing command: {str(e)}", False
@@ -364,7 +369,6 @@ async def main(run_now: str | None = None):
         log(f"Invalid jobs.json: {e}")
         sys.exit(1)
 
-    state = load_state()
     now = datetime.now(ZoneInfo("UTC"))
 
     jobs = config.get("jobs", [])
@@ -378,51 +382,50 @@ async def main(run_now: str | None = None):
             log("Skipping job without id")
             continue
 
-        # Normalize state entry to new dict format
-        if isinstance(state.get(job_id), str):
-            state[job_id] = {"last_run": state[job_id], "failures": 0}
+        with locked_state() as state:
+            # Normalize state entry to new dict format
+            if isinstance(state.get(job_id), str):
+                state[job_id] = {"last_run": state[job_id], "failures": 0}
 
-        job_state = state.get(job_id, {"last_run": None, "failures": 0})
+            job_state = state.get(job_id, {"last_run": None, "failures": 0})
 
-        # If --run-now specified, only run that job (skip enabled/due checks)
-        if run_now:
-            if job_id != run_now:
-                continue
-            log(f"Force-running job: {job_id}")
-            # Reset failure count on manual run
-            job_state["failures"] = 0
-        else:
-            if not job.get("enabled", True):
-                continue
+            # If --run-now specified, only run that job (skip enabled/due checks)
+            if run_now:
+                if job_id != run_now:
+                    continue
+                log(f"Force-running job: {job_id}")
+                # Reset failure count on manual run
+                job_state["failures"] = 0
+            else:
+                if not job.get("enabled", True):
+                    continue
 
-            # Check if disabled due to consecutive failures
-            if job_state.get("failures", 0) >= 3:
-                log(
-                    f"Skipping {job_id}: disabled after {job_state['failures']} consecutive failures (use --run-now to reset)"
-                )
-                continue
+                # Check if disabled due to consecutive failures
+                if job_state.get("failures", 0) >= 3:
+                    log(
+                        f"Skipping {job_id}: disabled after {job_state['failures']} consecutive failures (use --run-now to reset)"
+                    )
+                    continue
 
-            if not is_job_due(job, state, now):
-                continue
+                if not is_job_due(job, state, now):
+                    continue
 
-        # Save state BEFORE executing to prevent race condition with next cron invocation
-        # (job may take longer than 1 minute, causing duplicate runs)
-        tz = ZoneInfo(job.get("timezone", "UTC"))
-        job_state["last_run"] = now.astimezone(tz).isoformat()
-        state[job_id] = job_state
-        save_job_state(job_id, job_state)
+            # Save state BEFORE executing to prevent race condition with next cron invocation
+            # (job may take longer than 1 minute, causing duplicate runs)
+            tz = ZoneInfo(job.get("timezone", "UTC"))
+            job_state["last_run"] = now.astimezone(tz).isoformat()
+            state[job_id] = job_state
+            save_state(state)
 
         success = await execute_job(job)
         if success:
             job_state["failures"] = 0
-            state[job_id] = job_state
             save_job_state(job_id, job_state)
             log(f"Job {job_id} completed successfully")
         else:
             job_state["failures"] = job_state.get("failures", 0) + 1
             # Clear last_run so it retries on next cron cycle
             job_state["last_run"] = None
-            state[job_id] = job_state
             save_job_state(job_id, job_state)
 
             if job_state["failures"] >= 3:

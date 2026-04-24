@@ -4,12 +4,9 @@ import asyncio
 import json
 import os
 import re
-import shlex
 import signal
-import tempfile
 import uuid
 from datetime import datetime, timezone
-from typing import Any
 
 import discord
 from dotenv import load_dotenv
@@ -24,11 +21,8 @@ from agent_runner import (
     resolve_system_prompt_path,
     run_channel_message,
 )
-from mcp_tooling import (
-    GMAIL_PERMISSION_PATTERNS,
-    GOOGLE_CALENDAR_PERMISSION_PATTERNS,
-    GOOGLE_CALENDAR_PRE_TOOL_MATCHERS,
-)
+from atlas_config import build_channel_permissions, build_channel_settings
+from atlas_utils import atomic_write_json, atomic_write_text
 from med_config import find_med_by_content
 
 load_dotenv()
@@ -60,57 +54,11 @@ def get_channel_lock(channel_id: int) -> asyncio.Lock:
     return channel_locks[channel_id]
 
 
-def _shell_command(program: str, *args: str) -> str:
-    """Build a shell command with safely quoted arguments."""
-    return " ".join(shlex.quote(part) for part in (program, *args))
-
-
-def _atomic_write_text(path: str, content: str) -> None:
-    """Atomically replace a text file."""
-    directory = os.path.dirname(path) or "."
-    os.makedirs(directory, exist_ok=True)
-    fd, temp_path = tempfile.mkstemp(dir=directory)
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write(content)
-        os.replace(temp_path, path)
-    except Exception:
-        try:
-            os.unlink(temp_path)
-        except OSError:
-            pass
-        raise
-
-
-def _atomic_write_json(path: str, data: dict[str, Any]) -> None:
-    """Atomically replace a JSON file."""
-    _atomic_write_text(path, json.dumps(data, indent=2))
-
-
 def _sanitize_attachment_filename(filename: str) -> str:
     """Collapse unsafe attachment path characters into a safe basename."""
     basename = os.path.basename(filename.replace("\\", "/"))
     safe_name = re.sub(r"[^A-Za-z0-9._-]", "_", basename).strip("._")
     return safe_name or "attachment"
-
-
-async def _kill_process(process: asyncio.subprocess.Process) -> None:
-    """Terminate and reap a subprocess."""
-    process.kill()
-    await process.communicate()
-
-
-def _format_process_error(
-    stdout: bytes,
-    stderr: bytes,
-    *,
-    prefix: str = "Error",
-    fallback: str = "Process failed with no output.",
-) -> str:
-    """Build a user-facing error message from subprocess output."""
-    parts = [stdout.decode().strip(), stderr.decode().strip()]
-    message = "\n\n".join(part for part in parts if part)
-    return f"{prefix}: {message}" if message else f"{prefix}: {fallback}"
 
 
 def get_reaction_timestamp() -> str:
@@ -119,97 +67,13 @@ def get_reaction_timestamp() -> str:
 
 
 # Session settings for each channel session (built dynamically from env vars)
-CHANNEL_SETTINGS: dict[str, Any] = {
-    "hooks": {
-        "SessionStart": [
-            {
-                "hooks": [
-                    {"type": "command", "command": _shell_command("cat", SYSTEM_PROMPT_PATH)},
-                    {"type": "command", "command": _shell_command("cat", CONTEXT_PATH)},
-                    {"type": "command", "command": "echo '\n---\n# Session Context'"},
-                    {
-                        "type": "command",
-                        "command": "TZ='America/Los_Angeles' date '+**Current Time:** %A, %B %d, %Y %H:%M %Z'",
-                    },
-                    {
-                        "type": "command",
-                        "command": shlex.quote(f"{BOT_DIR}/hooks/tasks_summary.sh"),
-                    },
-                    {
-                        "type": "command",
-                        "command": shlex.quote(f"{BOT_DIR}/hooks/recent_changes.sh"),
-                    },
-                    {
-                        "type": "command",
-                        "command": shlex.quote(f"{BOT_DIR}/hooks/recent_summaries.sh"),
-                    },
-                    {
-                        "type": "command",
-                        "command": shlex.quote(f"{BOT_DIR}/hooks/librarian_context.sh"),
-                    },
-                ]
-            }
-        ],
-        "PreToolUse": [
-            {
-                "matcher": matcher,
-                "hooks": [
-                    {
-                        "type": "command",
-                        "command": shlex.quote(f"{BOT_DIR}/hooks/calendar_context.sh"),
-                    }
-                ],
-            }
-            for matcher in GOOGLE_CALENDAR_PRE_TOOL_MATCHERS
-        ],
-        "PostToolUse": [
-            {
-                "matcher": "Write(**Workout-Logs/20*.md)",
-                "hooks": [
-                    {
-                        "type": "command",
-                        "command": shlex.quote(f"{BOT_DIR}/hooks/workout_oura_data.sh"),
-                    }
-                ],
-            }
-        ],
-    }
-}
+CHANNEL_SETTINGS = build_channel_settings(
+    bot_dir=BOT_DIR,
+    system_prompt_path=SYSTEM_PROMPT_PATH,
+    context_path=CONTEXT_PATH,
+)
 
-CHANNEL_PERMISSIONS: dict[str, Any] = {
-    "permissions": {
-        "allow": [
-            "Read(*)",
-            "Write(*)",
-            "Edit(*)",
-            "Bash(find:*)",
-            "Bash(grep:*)",
-            "Bash(rg:*)",
-            "Bash(ls:*)",
-            "Bash(cat:*)",
-            "Bash(head:*)",
-            "Bash(tail:*)",
-            "Bash(wc:*)",
-            "Bash(tree:*)",
-            "Bash(date:*)",
-            "Bash(echo:*)",
-            "Bash(pwd:*)",
-            "Bash(python3:*)",
-            "Bash(which:*)",
-            "Bash(file:*)",
-            "Bash(stat:*)",
-            "Bash(du:*)",
-            "Bash(df:*)",
-            "Bash(mv:*)",
-            "Bash(mkdir:*)",
-            "Bash(done)",
-            *GOOGLE_CALENDAR_PERMISSION_PATTERNS,
-            *GMAIL_PERMISSION_PATTERNS,
-            "mcp__garmin__*",
-            "mcp__whoop__*",
-        ]
-    }
-}
+CHANNEL_PERMISSIONS = build_channel_permissions()
 
 
 def ensure_channel_session(channel_id: int) -> str:
@@ -325,6 +189,130 @@ def build_librarian_prompt(command: str, args: str) -> str:
     return prompts[command]
 
 
+async def send_chunked_response(channel, response: str) -> None:
+    """Send a response, splitting it to fit Discord message limits."""
+    if len(response) <= MAX_RESPONSE_LENGTH:
+        await channel.send(response)
+        return
+
+    chunks = [
+        response[i : i + MAX_RESPONSE_LENGTH] for i in range(0, len(response), MAX_RESPONSE_LENGTH)
+    ]
+    for chunk in chunks:
+        await channel.send(chunk)
+
+
+def strip_bot_mentions(content: str, mentions: list) -> str:
+    """Remove Discord mention syntax from message content."""
+    stripped_content = content
+    for mention in mentions:
+        stripped_content = stripped_content.replace(f"<@{mention.id}>", "").strip()
+        stripped_content = stripped_content.replace(f"<@!{mention.id}>", "").strip()
+    return stripped_content
+
+
+def build_help_text() -> str:
+    """Build the Discord help text for the current provider."""
+    available_models = ", ".join(get_user_selectable_models())
+    current_provider = get_agent_provider()
+    return (
+        "**ATLAS Commands**\n\n"
+        "**!help** - Show this message\n"
+        "**!model** - Show current model\n"
+        f"**!model <model>** - Switch model (provider: {current_provider}; available: {available_models})\n"
+        "**!recall <query>** - Search your vault like a librarian\n"
+        "**!recent-notes** - Summarize recently updated notes\n"
+        "**!open-loops** - Review unresolved tasks and waiting states\n"
+        "**!orphan-notes** - Find notes that need links or cleanup\n"
+        "**!librarian** - Generate a compact second-brain digest\n"
+        "**!reset** - Clear session and start fresh\n\n"
+        "Or just send a message and I'll respond."
+    )
+
+
+async def handle_reset_command(message, content: str) -> bool:
+    """Handle reset/clear commands. Returns whether a command was handled."""
+    if content.lower() not in ("!reset", "reset", "!clear", "clear"):
+        return False
+
+    if reset_channel_session(message.channel.id):
+        await message.channel.send("Session cleared. Starting fresh.")
+    else:
+        await message.channel.send("No session to clear.")
+    return True
+
+
+async def handle_help_command(message, content: str) -> bool:
+    """Handle help commands. Returns whether a command was handled."""
+    if content.lower() not in ("!help", "help"):
+        return False
+
+    await message.channel.send(build_help_text())
+    return True
+
+
+async def handle_model_command(message, content: str) -> bool:
+    """Handle model commands. Returns whether a command was handled."""
+    if not content.lower().startswith("!model"):
+        return False
+
+    parts = content.split()
+    available_models = get_user_selectable_models()
+    if len(parts) == 1:
+        current = get_channel_model(message.channel.id)
+        await message.channel.send(f"Current model: {current} (provider: {get_agent_provider()})")
+        return True
+
+    if len(parts) == 2:
+        model = parts[1].lower()
+        if model in available_models:
+            set_channel_model(message.channel.id, model)
+            await message.channel.send(f"Switched to {model}.")
+            return True
+
+        valid_models = ", ".join(available_models)
+        await message.channel.send(f"Invalid model. Available now: {valid_models}")
+        return True
+
+    return False
+
+
+async def handle_librarian_command(message, content: str) -> bool:
+    """Handle librarian commands. Returns whether a command was handled."""
+    librarian_commands = {
+        "!recall": "recall",
+        "!open-loops": "open-loops",
+        "!recent-notes": "recent-notes",
+        "!orphan-notes": "orphan-notes",
+        "!librarian": "librarian",
+    }
+    lowered_content = content.lower()
+    for prefix, command_name in librarian_commands.items():
+        if lowered_content != prefix and not lowered_content.startswith(prefix + " "):
+            continue
+
+        args = content[len(prefix) :].strip()
+        if command_name == "recall" and not args:
+            await message.channel.send("Usage: !recall <query>")
+            return True
+
+        prompt = build_librarian_prompt(command_name, args)
+        print(f"  Librarian command: {command_name}")
+
+        lock = get_channel_lock(message.channel.id)
+        if lock.locked():
+            await message.channel.send("Processing your previous message, one moment...")
+
+        async with message.channel.typing():
+            async with lock:
+                response = await run_agent(message.channel.id, prompt)
+
+        await send_chunked_response(message.channel, response)
+        return True
+
+    return False
+
+
 def get_channel_model(channel_id: int) -> str:
     """Get the model preference for a channel, default to opus."""
     channel_dir = os.path.join(SESSIONS_DIR, str(channel_id))
@@ -339,7 +327,7 @@ def set_channel_model(channel_id: int, model: str) -> None:
     """Set the model preference for a channel."""
     channel_dir = ensure_channel_session(channel_id)
     model_file = os.path.join(channel_dir, "model.txt")
-    _atomic_write_text(model_file, model)
+    atomic_write_text(model_file, model)
 
 
 async def run_claude(channel_id: int, message_content: str) -> str:
@@ -398,96 +386,19 @@ async def on_message(message):
     if not (is_mentioned or is_atlas_channel):
         return
 
-    content = message.content
-    for mention in message.mentions:
-        content = content.replace(f"<@{mention.id}>", "").strip()
-        content = content.replace(f"<@!{mention.id}>", "").strip()
+    content = strip_bot_mentions(message.content, message.mentions)
 
-    # Handle reset command
-    if content.lower() in ("!reset", "reset", "!clear", "clear"):
-        if reset_channel_session(message.channel.id):
-            await message.channel.send("Session cleared. Starting fresh.")
-        else:
-            await message.channel.send("No session to clear.")
+    if await handle_reset_command(message, content):
         return
 
-    # Handle help command
-    if content.lower() in ("!help", "help"):
-        available_models = ", ".join(get_user_selectable_models())
-        current_provider = get_agent_provider()
-        help_text = (
-            "**ATLAS Commands**\n\n"
-            "**!help** - Show this message\n"
-            "**!model** - Show current model\n"
-            f"**!model <model>** - Switch model (provider: {current_provider}; available: {available_models})\n"
-            "**!recall <query>** - Search your vault like a librarian\n"
-            "**!recent-notes** - Summarize recently updated notes\n"
-            "**!open-loops** - Review unresolved tasks and waiting states\n"
-            "**!orphan-notes** - Find notes that need links or cleanup\n"
-            "**!librarian** - Generate a compact second-brain digest\n"
-            "**!reset** - Clear session and start fresh\n\n"
-            "Or just send a message and I'll respond."
-        )
-        await message.channel.send(help_text)
+    if await handle_help_command(message, content):
         return
 
-    # Handle model command
-    if content.lower().startswith("!model"):
-        parts = content.split()
-        available_models = get_user_selectable_models()
-        if len(parts) == 1:
-            # Show current model
-            current = get_channel_model(message.channel.id)
-            await message.channel.send(
-                f"Current model: {current} (provider: {get_agent_provider()})"
-            )
-            return
-        elif len(parts) == 2:
-            model = parts[1].lower()
-            if model in available_models:
-                set_channel_model(message.channel.id, model)
-                await message.channel.send(f"Switched to {model}.")
-                return
-            else:
-                valid_models = ", ".join(available_models)
-                await message.channel.send(f"Invalid model. Available now: {valid_models}")
-                return
+    if await handle_model_command(message, content):
+        return
 
-    librarian_commands = {
-        "!recall": "recall",
-        "!open-loops": "open-loops",
-        "!recent-notes": "recent-notes",
-        "!orphan-notes": "orphan-notes",
-        "!librarian": "librarian",
-    }
-    lowered_content = content.lower()
-    for prefix, command_name in librarian_commands.items():
-        if lowered_content == prefix or lowered_content.startswith(prefix + " "):
-            args = content[len(prefix) :].strip()
-            if command_name == "recall" and not args:
-                await message.channel.send("Usage: !recall <query>")
-                return
-            prompt = build_librarian_prompt(command_name, args)
-            print(f"  Librarian command: {command_name}")
-
-            lock = get_channel_lock(message.channel.id)
-            if lock.locked():
-                await message.channel.send("Processing your previous message, one moment...")
-
-            async with message.channel.typing():
-                async with lock:
-                    response = await run_agent(message.channel.id, prompt)
-
-            if len(response) <= MAX_RESPONSE_LENGTH:
-                await message.channel.send(response)
-            else:
-                chunks = [
-                    response[i : i + MAX_RESPONSE_LENGTH]
-                    for i in range(0, len(response), MAX_RESPONSE_LENGTH)
-                ]
-                for chunk in chunks:
-                    await message.channel.send(chunk)
-            return
+    if await handle_librarian_command(message, content):
+        return
 
     # Download attachments (images, PDFs, etc.)
     downloaded_files = []
@@ -515,15 +426,7 @@ async def on_message(message):
 
     print(f"  Response length: {len(response)}")
 
-    if len(response) <= MAX_RESPONSE_LENGTH:
-        await message.channel.send(response)
-    else:
-        chunks = [
-            response[i : i + MAX_RESPONSE_LENGTH]
-            for i in range(0, len(response), MAX_RESPONSE_LENGTH)
-        ]
-        for chunk in chunks:
-            await message.channel.send(chunk)
+    await send_chunked_response(message.channel, response)
 
 
 async def log_medication_dose(med_name: str, timestamp: str) -> bool:
@@ -586,7 +489,7 @@ async def log_medication_dose(med_name: str, timestamp: str) -> bool:
         lines.insert(insert_index, entry)
 
         # Write back
-        _atomic_write_text(med_file, "".join(lines))
+        atomic_write_text(med_file, "".join(lines))
 
         print(f"Logged dose: {med_name} at {date_str} ({day_of_week})")
         return True
@@ -651,7 +554,7 @@ async def on_reaction_add(reaction: discord.Reaction, user: discord.User):
             state["med_reminders"][med_name]["confirmed"] = True
             state["med_reminders"][med_name]["confirmed_at"] = timestamp
 
-            _atomic_write_json(state_file, state)
+            atomic_write_json(state_file, state)
 
             print(f"Updated agent state for {med_name}")
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 import sys
 from pathlib import Path
 from typing import Final
@@ -11,7 +12,18 @@ MCP_SERVER_ROOTS: Final[dict[str, Path]] = {
     name: REPO_ROOT / "mcp-servers" / name for name in ("garmin", "google_bot", "oura", "whoop")
 }
 AMBIGUOUS_MODULES: Final[set[str]] = {"oauth_setup", "mcp_server"}
+MCP_TEST_DEPENDENCIES: Final[dict[str, tuple[str, ...]]] = {
+    "garmin": ("mcp", "structlog"),
+    "oura": ("httpx", "mcp", "structlog"),
+    "whoop": ("httpx", "mcp", "structlog"),
+}
 _ACTIVE_CONTEXT: str | None = None
+
+
+def _missing_dependencies(dependencies: tuple[str, ...]) -> list[str]:
+    return [
+        dependency for dependency in dependencies if importlib.util.find_spec(dependency) is None
+    ]
 
 
 def _clear_ambiguous_modules() -> None:
@@ -48,6 +60,13 @@ def _activate_import_context(path: Path) -> None:
     _clear_ambiguous_modules()
     _set_import_roots(target_root)
     _ACTIVE_CONTEXT = context_name
+
+
+def pytest_ignore_collect(collection_path: Path, config) -> bool:  # noqa: ANN001
+    path = Path(collection_path)
+    context_name, _target_root = _context_for_path(path)
+    dependencies = MCP_TEST_DEPENDENCIES.get(context_name or "")
+    return bool(dependencies and _missing_dependencies(dependencies))
 
 
 def pytest_sessionstart(session) -> None:  # noqa: ANN001

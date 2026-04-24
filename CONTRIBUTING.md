@@ -35,7 +35,7 @@ Thank you for your interest in contributing to ATLAS Bot! This document provides
    ```bash
    ruff check .
    ruff format .
-   pytest
+   pytest tests
    ```
 
 4. Commit your changes with a descriptive message:
@@ -66,6 +66,7 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/):
 2. Open a Pull Request against the `main` branch
 
 3. Fill out the PR template with:
+
    - Description of changes
    - Related issues
    - Testing performed
@@ -81,11 +82,22 @@ We follow [Conventional Commits](https://www.conventionalcommits.org/):
 
 ## Running Tests
 
-Run the full test suite:
+Run the root bot test suite:
+
+```bash
+pytest tests
+```
+
+Run the full repository test suite, including MCP server packages:
 
 ```bash
 pytest
 ```
+
+MCP server tests whose optional dependencies are not installed are ignored during collection.
+Install the development dependencies with `pip install -e ".[dev]"` to run every MCP test.
+Each MCP server also has its own `pyproject.toml` Ruff configuration; lint those packages
+from their package directories when working on them.
 
 Run with coverage:
 

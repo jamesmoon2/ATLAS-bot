@@ -73,6 +73,15 @@ class TestSaveState:
             "job_b": {"last_run": None, "failures": 2},
         }
 
+    def test_save_job_state_uses_lock_next_to_state_file(self, tmp_path, monkeypatch):
+        f = tmp_path / "nested" / "state.json"
+        monkeypatch.setattr(dispatcher, "STATE_FILE", f)
+
+        dispatcher.save_job_state("job_a", {"last_run": None, "failures": 0})
+
+        assert (tmp_path / "nested" / "state.json.lock").exists()
+        assert json.loads(f.read_text()) == {"job_a": {"last_run": None, "failures": 0}}
+
 
 class TestStateMigration:
     """Old string-format state entries are handled gracefully."""

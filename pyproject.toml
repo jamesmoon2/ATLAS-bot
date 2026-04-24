@@ -39,6 +39,8 @@ dev = [
 py-modules = [
     "agent_exec",
     "agent_runner",
+    "atlas_config",
+    "atlas_utils",
     "bot",
     "garmin_workout_fallback",
     "mcp_tooling",
@@ -57,6 +59,7 @@ filterwarnings = [
 [tool.ruff]
 target-version = "py310"
 line-length = 100
+extend-exclude = ["mcp-servers"]
 
 [tool.ruff.lint]
 select = [

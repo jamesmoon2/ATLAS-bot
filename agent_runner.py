@@ -16,6 +16,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from atlas_utils import atomic_write_json, atomic_write_text, format_process_error, kill_process
 from mcp_tooling import is_google_calendar_tool_name, normalize_allowed_tools_for_provider
 
 SUPPORTED_PROVIDERS = {"claude", "codex"}
@@ -106,28 +107,6 @@ def resolve_model_for_provider(model: str, provider: str | None = None) -> str:
     if active_provider == "codex":
         return normalized if normalized in CODEX_MODELS else get_default_model(active_provider)
     return normalized if normalized in CLAUDE_MODELS else get_default_model(active_provider)
-
-
-def _atomic_write_text(path: str | Path, content: str) -> None:
-    """Atomically replace a text file."""
-    target = Path(path)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    fd, temp_path = tempfile.mkstemp(dir=str(target.parent))
-    try:
-        with os.fdopen(fd, "w", encoding="utf-8") as f:
-            f.write(content)
-        os.replace(temp_path, target)
-    except Exception:
-        try:
-            os.unlink(temp_path)
-        except OSError:
-            pass
-        raise
-
-
-def _atomic_write_json(path: str | Path, data: dict[str, Any]) -> None:
-    """Atomically replace a JSON file."""
-    _atomic_write_text(path, json.dumps(data, indent=2))
 
 
 def _shell_command(program: str, *args: str) -> str:
@@ -326,7 +305,7 @@ def prepare_session_dir(
         _read_json_object_if_exists(project_settings_path),
         channel_settings,
     )
-    _atomic_write_json(settings_path, merged_settings)
+    atomic_write_json(settings_path, merged_settings)
 
     project_local_settings_path = Path(bot_dir) / ".claude" / "settings.local.json"
     local_settings_path = claude_dir / "settings.local.json"
@@ -334,7 +313,7 @@ def prepare_session_dir(
         _read_json_object_if_exists(project_local_settings_path),
         channel_permissions,
     )
-    _atomic_write_json(local_settings_path, merged_local_settings)
+    atomic_write_json(local_settings_path, merged_local_settings)
 
     skills_symlink = claude_dir / "skills"
     skills_target = resolve_skills_dir(bot_dir)
@@ -355,16 +334,16 @@ def prepare_session_dir(
     if calendar_hook.exists():
         calendar_output = _run_shell_hook(str(calendar_hook), env=hook_env)
         if calendar_output:
-            _atomic_write_text(calendar_context_path, calendar_output + "\n")
+            atomic_write_text(calendar_context_path, calendar_output + "\n")
 
     garmin_workout_help_path = session_path / CODEX_GARMIN_WORKOUT_HELP_FILENAME
-    _atomic_write_text(garmin_workout_help_path, _build_codex_garmin_workout_help(bot_dir))
+    atomic_write_text(garmin_workout_help_path, _build_codex_garmin_workout_help(bot_dir))
 
     workout_help_path = session_path / CODEX_WORKOUT_HELP_FILENAME
-    _atomic_write_text(workout_help_path, _build_codex_workout_help(bot_dir))
+    atomic_write_text(workout_help_path, _build_codex_workout_help(bot_dir))
 
     codex_agents_path = session_path / CODEX_AGENTS_FILENAME
-    _atomic_write_text(
+    atomic_write_text(
         codex_agents_path,
         _build_codex_agents_content(
             bot_dir=bot_dir,
@@ -385,26 +364,7 @@ def prepare_session_dir(
         )
     )
     metadata.setdefault("created_at", metadata["updated_at"])
-    _atomic_write_json(metadata_path, metadata)
-
-
-def _format_process_error(
-    stdout: bytes,
-    stderr: bytes,
-    *,
-    prefix: str = "Error",
-    fallback: str = "Process failed with no output.",
-) -> str:
-    """Build a user-facing error message from subprocess output."""
-    parts = [stdout.decode().strip(), stderr.decode().strip()]
-    message = "\n\n".join(part for part in parts if part)
-    return f"{prefix}: {message}" if message else f"{prefix}: {fallback}"
-
-
-async def _kill_process(process: asyncio.subprocess.Process) -> None:
-    """Terminate and reap a subprocess."""
-    process.kill()
-    await process.communicate()
+    atomic_write_json(metadata_path, metadata)
 
 
 def _codex_command_prefix(
@@ -477,7 +437,7 @@ def _sync_codex_auth_into_managed_home(codex_home: Path) -> None:
     if target_auth.exists() and target_auth.read_text(encoding="utf-8") == source_content:
         return
 
-    _atomic_write_text(target_auth, source_content)
+    atomic_write_text(target_auth, source_content)
     target_auth.chmod(0o600)
 
 
@@ -819,7 +779,7 @@ def _ensure_codex_home(bot_dir: str, vault_path: str) -> Path:
     if not configured_home:
         _sync_codex_auth_into_managed_home(codex_home)
     config_path = codex_home / "config.toml"
-    _atomic_write_text(config_path, _build_codex_config(bot_dir, vault_path) + "\n")
+    atomic_write_text(config_path, _build_codex_config(bot_dir, vault_path) + "\n")
     return codex_home
 
 
@@ -1186,7 +1146,7 @@ async def _run_codex_exec(
             return response, process.returncode, stdout, stderr
         except asyncio.TimeoutError:
             if process is not None:
-                await _kill_process(process)
+                await kill_process(process)
             raise
 
     start_time = time.monotonic()
@@ -1298,7 +1258,7 @@ async def _run_claude_channel_message(*, prompt: str, channel_dir: str, model: s
 
         stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=600)
         if process.returncode != 0:
-            return _format_process_error(
+            return format_process_error(
                 stdout,
                 stderr,
                 fallback=f"Claude exited with status {process.returncode}.",
@@ -1317,7 +1277,7 @@ async def _run_claude_channel_message(*, prompt: str, channel_dir: str, model: s
             return response if response else "No response from Claude."
     except asyncio.TimeoutError:
         if process is not None:
-            await _kill_process(process)
+            await kill_process(process)
         return "Request timed out after 10 minutes."
     except Exception as e:
         return f"Error: {str(e)}"
@@ -1371,7 +1331,7 @@ async def _run_codex_channel_message(
         return f"Error: {str(e)}"
 
     if returncode != 0:
-        return _format_process_error(
+        return format_process_error(
             stdout,
             stderr,
             prefix="Error",
@@ -1430,7 +1390,7 @@ async def run_job_prompt(
 
         if returncode != 0:
             return (
-                _format_process_error(
+                format_process_error(
                     stdout,
                     stderr,
                     fallback=f"Codex exited with status {returncode}.",
@@ -1454,7 +1414,7 @@ async def run_job_prompt(
             "--allowedTools",
             ",".join(provider_allowed_tools or ["Read"]),
             "-p",
-            prompt,
+            effective_prompt,
             cwd=bot_dir,
             stdin=asyncio.subprocess.DEVNULL,
             stdout=asyncio.subprocess.PIPE,
@@ -1471,7 +1431,7 @@ async def run_job_prompt(
 
         if process.returncode != 0:
             return (
-                _format_process_error(
+                format_process_error(
                     stdout,
                     stderr,
                     fallback=f"Claude exited with status {process.returncode}.",
@@ -1487,7 +1447,7 @@ async def run_job_prompt(
         return output, True
     except asyncio.TimeoutError:
         if process is not None:
-            await _kill_process(process)
+            await kill_process(process)
         return f"Job timed out after {timeout} seconds.", False
     except Exception as e:
         return f"Error: {str(e)}", False
@@ -1552,7 +1512,7 @@ async def run_session_prompt(
         )
         if returncode != 0:
             raise RuntimeError(
-                _format_process_error(
+                format_process_error(
                     stdout,
                     stderr,
                     fallback=f"Codex exited with status {returncode}.",
@@ -1577,7 +1537,7 @@ async def run_session_prompt(
     stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout)
     if process.returncode != 0:
         raise RuntimeError(
-            _format_process_error(
+            format_process_error(
                 stdout,
                 stderr,
                 fallback=f"Claude exited with status {process.returncode}.",

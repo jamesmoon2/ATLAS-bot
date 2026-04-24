@@ -442,11 +442,17 @@ pip install -e ".[dev]"
 # Set up pre-commit hooks
 pre-commit install
 
-# Run linter
+# Run root app linter
 ruff check .
 
 # Format code
 ruff format .
+
+# Run root app tests
+pytest tests
+
+# Run all tests, including MCP server packages
+pytest
 ```
 
 ### Pre-commit Hooks

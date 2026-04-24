@@ -316,6 +316,42 @@ async def test_run_codex_exec_uses_reasoning_effort_override(tmp_path, monkeypat
     assert args[config_index + 1] == 'model_reasoning_effort="medium"'
 
 
+@pytest.mark.asyncio
+async def test_run_job_prompt_claude_uses_augmented_prompt(tmp_path, monkeypatch):
+    captured: dict[str, tuple] = {}
+
+    class _ClaudeProcess:
+        returncode = 0
+
+        async def communicate(self):
+            return b"done", b""
+
+    async def fake_create_subprocess_exec(*args, **kwargs):
+        captured["args"] = args
+        return _ClaudeProcess()
+
+    monkeypatch.setenv("ATLAS_AGENT_PROVIDER", "claude")
+    monkeypatch.setattr(agent_runner.asyncio, "create_subprocess_exec", fake_create_subprocess_exec)
+
+    output, success = await agent_runner.run_job_prompt(
+        prompt="Do the scheduled work.",
+        model="opus",
+        allowed_tools=["Read"],
+        timeout=10,
+        bot_dir=str(tmp_path),
+        vault_path=str(tmp_path / "vault"),
+    )
+
+    args = list(captured["args"])
+    prompt = args[args.index("-p") + 1]
+
+    assert success is True
+    assert output == "done"
+    assert "## Execution Context" in prompt
+    assert "## Allowed Tools" in prompt
+    assert "Do the scheduled work." in prompt
+
+
 def test_build_codex_env_uses_managed_bot_home(tmp_path, monkeypatch):
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
     monkeypatch.delenv("ATLAS_CODEX_HOME", raising=False)

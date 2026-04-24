@@ -10,11 +10,7 @@ import os
 import sys
 
 from agent_runner import resolve_system_prompt_path, run_session_prompt
-from mcp_tooling import (
-    GMAIL_PERMISSION_PATTERNS,
-    GOOGLE_CALENDAR_PERMISSION_PATTERNS,
-    GOOGLE_CALENDAR_PRE_TOOL_MATCHERS,
-)
+from atlas_config import build_channel_permissions, build_channel_settings
 
 BOT_DIR = os.getenv("BOT_DIR", os.path.dirname(os.path.abspath(__file__)))
 VAULT_PATH = os.getenv("VAULT_PATH", "/home/user/vault")
@@ -22,92 +18,13 @@ SYSTEM_PROMPT_PATH = resolve_system_prompt_path(VAULT_PATH, os.getenv("SYSTEM_PR
 CONTEXT_PATH = os.getenv("CONTEXT_PATH", f"{VAULT_PATH}/System/ATLAS-Context.md")
 
 
-def _shell_command(program: str, *args: str) -> str:
-    """Build a shell command with safely quoted arguments."""
-    import shlex
+CHANNEL_SETTINGS = build_channel_settings(
+    bot_dir=BOT_DIR,
+    system_prompt_path=SYSTEM_PROMPT_PATH,
+    context_path=CONTEXT_PATH,
+)
 
-    return " ".join(shlex.quote(part) for part in (program, *args))
-
-
-CHANNEL_SETTINGS = {
-    "hooks": {
-        "SessionStart": [
-            {
-                "hooks": [
-                    {"type": "command", "command": _shell_command("cat", SYSTEM_PROMPT_PATH)},
-                    {"type": "command", "command": _shell_command("cat", CONTEXT_PATH)},
-                    {"type": "command", "command": "echo '\n---\n# Session Context'"},
-                    {
-                        "type": "command",
-                        "command": "TZ='America/Los_Angeles' date '+**Current Time:** %A, %B %d, %Y %H:%M %Z'",
-                    },
-                    {
-                        "type": "command",
-                        "command": os.path.join(BOT_DIR, "hooks", "tasks_summary.sh"),
-                    },
-                    {
-                        "type": "command",
-                        "command": os.path.join(BOT_DIR, "hooks", "recent_changes.sh"),
-                    },
-                    {
-                        "type": "command",
-                        "command": os.path.join(BOT_DIR, "hooks", "recent_summaries.sh"),
-                    },
-                    {
-                        "type": "command",
-                        "command": os.path.join(BOT_DIR, "hooks", "librarian_context.sh"),
-                    },
-                ]
-            }
-        ],
-        "PreToolUse": [
-            {
-                "matcher": matcher,
-                "hooks": [
-                    {
-                        "type": "command",
-                        "command": os.path.join(BOT_DIR, "hooks", "calendar_context.sh"),
-                    }
-                ],
-            }
-            for matcher in GOOGLE_CALENDAR_PRE_TOOL_MATCHERS
-        ],
-    }
-}
-
-CHANNEL_PERMISSIONS = {
-    "permissions": {
-        "allow": [
-            "Read(*)",
-            "Write(*)",
-            "Edit(*)",
-            "Bash(find:*)",
-            "Bash(grep:*)",
-            "Bash(rg:*)",
-            "Bash(ls:*)",
-            "Bash(cat:*)",
-            "Bash(head:*)",
-            "Bash(tail:*)",
-            "Bash(wc:*)",
-            "Bash(tree:*)",
-            "Bash(date:*)",
-            "Bash(echo:*)",
-            "Bash(pwd:*)",
-            "Bash(python3:*)",
-            "Bash(which:*)",
-            "Bash(file:*)",
-            "Bash(stat:*)",
-            "Bash(du:*)",
-            "Bash(df:*)",
-            "Bash(mv:*)",
-            "Bash(mkdir:*)",
-            "Bash(done)",
-            *GOOGLE_CALENDAR_PERMISSION_PATTERNS,
-            *GMAIL_PERMISSION_PATTERNS,
-            "mcp__garmin__*",
-        ]
-    }
-}
+CHANNEL_PERMISSIONS = build_channel_permissions()
 
 
 async def _main() -> int:
