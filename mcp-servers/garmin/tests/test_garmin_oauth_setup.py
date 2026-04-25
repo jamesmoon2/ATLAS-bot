@@ -41,9 +41,14 @@ def test_authenticate_to_directory_uses_login_tokenstore_for_fresh_auth(
     fake_client.get_full_name.return_value = "James Mooney"
     fake_client_cls = MagicMock(return_value=fake_client)
 
-    monkeypatch.setattr("oauth_setup._require_garmin_client", lambda: fake_client_cls)
-    monkeypatch.setattr(
-        "oauth_setup._prompt_for_credentials",
+    monkeypatch.setitem(
+        _authenticate_to_directory.__globals__,
+        "_require_garmin_client",
+        lambda: fake_client_cls,
+    )
+    monkeypatch.setitem(
+        _authenticate_to_directory.__globals__,
+        "_prompt_for_credentials",
         lambda: ("jamesmoon2@gmail.com", "secret"),
     )
 
