@@ -115,3 +115,110 @@ class TestSendMessageFunction:
 
         assert await send_message.send_message("hello") is True
         channel.send.assert_awaited_once_with("hello")
+
+    @pytest.mark.asyncio
+    async def test_channel_id_argument_takes_precedence(self, monkeypatch):
+        import send_message
+
+        channel = SimpleNamespace(id=456, send=AsyncMock())
+        requested_ids = []
+
+        class FakeClient:
+            guilds = []
+
+            def __init__(self, intents):
+                self._on_ready = None
+
+            def event(self, func):
+                self._on_ready = func
+                return func
+
+            def get_channel(self, channel_id):
+                requested_ids.append(channel_id)
+                return channel
+
+            async def start(self, token):
+                await self._on_ready()
+
+            async def close(self):
+                return None
+
+        monkeypatch.setattr(send_message, "DISCORD_TOKEN", "token")
+        monkeypatch.setattr(send_message, "CHANNEL_ID", 123)
+        monkeypatch.setenv("ATLAS_CHANNEL_ID_HEALTH", "789")
+        monkeypatch.setattr(send_message.discord, "Client", FakeClient)
+
+        assert await send_message.send_message("hello", channel_id=456, channel_name="health")
+        assert requested_ids == [456]
+
+    @pytest.mark.asyncio
+    async def test_channel_name_uses_configured_id(self, monkeypatch):
+        import send_message
+
+        channel = SimpleNamespace(id=789, send=AsyncMock())
+        requested_ids = []
+
+        class FakeClient:
+            guilds = []
+
+            def __init__(self, intents):
+                self._on_ready = None
+
+            def event(self, func):
+                self._on_ready = func
+                return func
+
+            def get_channel(self, channel_id):
+                requested_ids.append(channel_id)
+                return channel
+
+            async def start(self, token):
+                await self._on_ready()
+
+            async def close(self):
+                return None
+
+        monkeypatch.setattr(send_message, "DISCORD_TOKEN", "token")
+        monkeypatch.setattr(send_message, "CHANNEL_ID", 0)
+        monkeypatch.setenv("ATLAS_CHANNEL_ID_HEALTH", "789")
+        monkeypatch.setattr(send_message.discord, "Client", FakeClient)
+
+        assert await send_message.send_message("hello", channel_name="health")
+        assert requested_ids == [789]
+
+    @pytest.mark.asyncio
+    async def test_channel_name_lookup_takes_precedence_over_legacy_env(self, monkeypatch):
+        import send_message
+
+        channel = SimpleNamespace(id=789, name="health", send=AsyncMock())
+        legacy_channel = SimpleNamespace(id=123, name="atlas", send=AsyncMock())
+        requested_ids = []
+
+        class FakeClient:
+            def __init__(self, intents):
+                self._on_ready = None
+                self.guilds = [SimpleNamespace(text_channels=[channel, legacy_channel])]
+
+            def event(self, func):
+                self._on_ready = func
+                return func
+
+            def get_channel(self, channel_id):
+                requested_ids.append(channel_id)
+                return legacy_channel if channel_id == 123 else None
+
+            async def start(self, token):
+                await self._on_ready()
+
+            async def close(self):
+                return None
+
+        monkeypatch.setattr(send_message, "DISCORD_TOKEN", "token")
+        monkeypatch.setattr(send_message, "CHANNEL_ID", 123)
+        monkeypatch.delenv("ATLAS_CHANNEL_ID_HEALTH", raising=False)
+        monkeypatch.setattr(send_message.discord, "Client", FakeClient)
+
+        assert await send_message.send_message("hello", channel_name="health")
+        assert requested_ids == []
+        channel.send.assert_awaited_once_with("hello")
+        legacy_channel.send.assert_not_called()

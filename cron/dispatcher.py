@@ -272,12 +272,32 @@ async def run_claude(job: dict) -> tuple[str, bool]:
     return await run_agent_job(job)
 
 
+def resolve_webhook_url(notify_config: dict) -> tuple[str | None, str | None]:
+    """Resolve a webhook URL using the channel-specific fallback chain."""
+    env_chain = [
+        notify_config.get("url_env", "DISCORD_WEBHOOK_URL"),
+        "DISCORD_WEBHOOK_ATLAS",
+        "DISCORD_WEBHOOK_URL",
+    ]
+    seen: set[str] = set()
+    for env_name in env_chain:
+        if not env_name or env_name in seen:
+            continue
+        seen.add(env_name)
+        url = os.getenv(env_name)
+        if url:
+            return url, env_name
+    return None, None
+
+
 async def send_webhook(content: str, notify_config: dict) -> bool:
     """Send to Discord webhook."""
-    url = os.getenv(notify_config.get("url_env", "DISCORD_WEBHOOK_URL"))
+    url, url_env = resolve_webhook_url(notify_config)
     if not url:
-        log(f"Webhook URL not found in env: {notify_config.get('url_env')}")
+        log(f"Webhook URL not found in fallback chain for: {notify_config.get('url_env')}")
         return False
+    if url_env != notify_config.get("url_env", "DISCORD_WEBHOOK_URL"):
+        log(f"Webhook env fallback: {notify_config.get('url_env')} -> {url_env}")
 
     username = notify_config.get("username", "ATLAS Cron")
 

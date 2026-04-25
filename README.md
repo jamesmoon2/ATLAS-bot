@@ -178,8 +178,37 @@ python bot.py
 | `ATLAS_CODEX_REASONING_EFFORT`        | Codex reasoning effort (`low`..`xhigh`)                          | No       |
 | `ATLAS_CODEX_HOME`                    | Optional bot-specific Codex profile/home                         | No       |
 | `ATLAS_CODEX_CRON_TIMEOUT_MULTIPLIER` | Multiplier for agent cron job timeouts under Codex (default `3`) | No       |
-| `DISCORD_CHANNEL_ID`                  | Channel ID for `send_message.py` and cron jobs                   | No       |
-| `DISCORD_WEBHOOK_URL`                 | Webhook URL for cron job notifications                           | No       |
+| `ATLAS_CHANNEL_ID_*`                  | Optional channel ID pins for configured channels                 | No       |
+| `ATLAS_CONFIGURED_CHANNELS`           | Optional comma-separated auto-activation allowlist               | No       |
+| `DISCORD_WEBHOOK_*`                   | Channel-specific webhook URLs for cron notifications             | No       |
+| `DISCORD_CHANNEL_ID`                  | Legacy channel ID fallback for `send_message.py`                 | No       |
+| `DISCORD_WEBHOOK_URL`                 | Legacy webhook fallback for cron job notifications               | No       |
+
+### Configured Discord Channels
+
+ATLAS auto-activates in the channels declared in `channel_configs.py`:
+
+| Channel      | Role                                                         |
+| ------------ | ------------------------------------------------------------ |
+| `#atlas`     | General conversation and catch-all assistant work            |
+| `#health`    | Health, medications, recovery, Oura, WHOOP, Garmin, training |
+| `#projects`  | Project work, tasks, decisions, stale scans, vault follow-up |
+| `#briefings` | Read-mostly daily/weekly summaries and ambient reports       |
+| `#atlas-dev` | ATLAS harness work, operational alerts, bot development      |
+
+For production, set the matching `ATLAS_CHANNEL_ID_*` variables so Discord channel renames do not break routing. Channel names remain a bootstrap fallback for development and tests.
+
+To temporarily disable auto-activation in one or more configured channels without a deploy, set:
+
+```bash
+ATLAS_CONFIGURED_CHANNELS=atlas,health,briefings
+```
+
+Cron notifications route to channel-specific webhooks. If a channel webhook is unset, the dispatcher falls back through:
+
+```text
+configured webhook -> DISCORD_WEBHOOK_ATLAS -> DISCORD_WEBHOOK_URL
+```
 
 ### Provider Switching
 
@@ -325,7 +354,7 @@ Hooks are defined in `bot.py` `CHANNEL_SETTINGS` and run at different stages:
 
 The bot responds to:
 
-- Any message in a channel named `#atlas`
+- Any message in a configured auto-activation channel
 - Direct @mentions in any channel
 
 ### Commands
@@ -384,9 +413,11 @@ All times are in `America/Los_Angeles`. The dispatcher tracks last run times in 
 
 Setup:
 
-1. Create a Discord webhook in your channel
-2. Add `DISCORD_WEBHOOK_URL` to `.env`
+1. Create Discord webhooks for the configured target channels
+2. Add the matching `DISCORD_WEBHOOK_*` values to `.env`
 3. Add system crontab entry: `* * * * * /path/to/atlas-bot/run_cron.sh`
+
+`DISCORD_WEBHOOK_URL` still works as the legacy final fallback during rollout.
 
 ## MCP Integrations
 

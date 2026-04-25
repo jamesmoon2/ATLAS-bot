@@ -26,7 +26,7 @@
       "prompt": "Run the morning-briefing skill for today.\n\n**Current Time:** {current_datetime}",
       "notify": {
         "type": "webhook",
-        "url_env": "DISCORD_WEBHOOK_URL",
+        "url_env": "DISCORD_WEBHOOK_BRIEFINGS",
         "username": "ATLAS Morning Briefing"
       }
     },
@@ -58,7 +58,7 @@
       "prompt": "Run the weekly-training-planner skill.\n\nRead `{vault_path}/Areas/Health/Training-State.md` as the source of truth for program state and read recent workout logs from `{vault_path}/Areas/Health/Workout-Logs/` before planning the week.\nUse the provided current time below as the authoritative reference for week detection and the upcoming date range.\n\n**Current Time:** {current_datetime}",
       "notify": {
         "type": "webhook",
-        "url_env": "DISCORD_WEBHOOK_URL",
+        "url_env": "DISCORD_WEBHOOK_HEALTH",
         "username": "ATLAS Weekly Planner"
       }
     },
@@ -79,7 +79,7 @@
       "prompt": "Perform a health check on MCP integrations.\n\n**Current Time:** {current_datetime}\n\n## Instructions\n\n1. **Google Calendar** - Call a lightweight read-only Google Calendar tool available in the active provider to verify OAuth is valid\n2. **Gmail** - Call a lightweight read-only Gmail labels/profile tool available in the active provider to verify OAuth is valid\n3. **Oura** - Call `mcp__oura__get_personal_info` to verify OAuth is valid\n4. **Garmin** - Call `mcp__garmin__get_profile` to verify saved Garmin auth is valid\n\n## Output Format\n\nIf all checks pass:\n```\nMCP Health Check: All systems operational\n- Google Calendar: OK\n- Gmail: OK\n- Oura: OK\n- Garmin: OK\n```\n\nIf any check fails, report the specific error:\n```\nMCP Health Check: ISSUES DETECTED\n- Google Calendar: [OK or error message]\n- Gmail: [OK or error message]\n- Oura: [OK or error message]\n- Garmin: [OK or error message]\n\nAction Required: Re-run authentication for failed services:\n- Google Calendar: GOOGLE_OAUTH_CREDENTIALS=\"$HOME/.config/google-calendar-mcp/gcp-oauth.keys.json\" npx @cocal/google-calendar-mcp auth\n- Oura: python mcp-servers/oura/oauth_setup.py\n- Garmin: python mcp-servers/garmin/oauth_setup.py\n```\n\nOnly include action steps for services that actually failed.",
       "notify": {
         "type": "webhook",
-        "url_env": "DISCORD_WEBHOOK_URL",
+        "url_env": "DISCORD_WEBHOOK_ATLAS_DEV",
         "username": "ATLAS Health Monitor"
       }
     },
@@ -95,7 +95,7 @@
       "prompt": "Scan for stale projects in the vault.\n\n**Current Time:** {current_datetime}\n\n## Instructions\n\n1. **List Projects** - Use Bash to list all project directories:\n   ```\n   ls -1 {vault_path}/Projects/\n   ```\n\n2. **Check Each Project** - For each project directory, find the most recently modified .md file:\n   ```\n   find {vault_path}/Projects/[PROJECT_NAME] -name \"*.md\" -type f -printf \"%T@ %Tc %p\\n\" | sort -rn | head -1\n   ```\n\n3. **Calculate Staleness** - Compare the modification date to today's date and categorize:\n   - **Needs Attention:** 30-59 days since last modification\n   - **Very Stale:** 60-89 days since last modification\n   - **Consider Archiving:** 90+ days since last modification\n   - **Active:** Less than 30 days (don't report these individually)\n\n4. **Skip Archive** - Do not scan {vault_path}/Archive/\n\n## Output Format\n\n**Stale Project Report**\n\n**Needs Attention (30-59 days)**\n- [Project Name] - Last modified: [date] ([X] days ago)\n\n**Very Stale (60-89 days)**\n- [Project Name] - Last modified: [date] ([X] days ago)\n\n**Consider Archiving (90+ days)**\n- [Project Name] - Last modified: [date] ([X] days ago)\n\n---\n**Summary:** [X] stale projects, [Y] active projects\n\nIf no stale projects found, just report: \"All [X] projects are active (modified within 30 days)\"",
       "notify": {
         "type": "webhook",
-        "url_env": "DISCORD_WEBHOOK_URL",
+        "url_env": "DISCORD_WEBHOOK_PROJECTS",
         "username": "ATLAS Project Scanner"
       }
     },
@@ -112,7 +112,7 @@
       "prompt": "Run the daily-summary skill for today.\n\nWork efficiently: prioritize today's session artifacts, today's daily note, and the smallest set of health/context files needed to produce an accurate summary. Keep the written summary concise and avoid broad vault exploration unless a key fact is missing.\n\nAfter writing the daily summary, review today's conversations and update {vault_path}/System/ATLAS-Context.md if any of the following occurred:\n\n1. **Corrections Log:** Any factual errors ATLAS made today \u2192 append to table\n2. **Active Threads:** Project status changes, new threads started, old threads completed \u2192 update section\n3. **Preferences Learned:** New interaction preferences expressed \u2192 append to section\n4. **Stable Facts:** Any new stable facts learned (weight change, new baseline, etc.) \u2192 update table\n5. **Health Baselines:** Changes to training, HRV, sleep patterns \u2192 update table\n\nOnly modify sections with actual changes. Do not rewrite unchanged sections.\nSkip this step if nothing changed today.",
       "notify": {
         "type": "webhook",
-        "url_env": "DISCORD_WEBHOOK_URL",
+        "url_env": "DISCORD_WEBHOOK_BRIEFINGS",
         "username": "ATLAS Daily Summary"
       }
     },
@@ -125,7 +125,7 @@
       "command": "{bot_dir}/cron/session_archive.sh",
       "notify": {
         "type": "webhook",
-        "url_env": "DISCORD_WEBHOOK_URL",
+        "url_env": "DISCORD_WEBHOOK_ATLAS_DEV",
         "username": "ATLAS Session Archive"
       }
     },
@@ -153,7 +153,7 @@
       "prompt": "Analyze context drift between stated decisions and actual execution over the last 7 days.\n\nRead `{vault_path}/Areas/Decision-Log.md`, recent daily summaries from `{vault_path}/Daily/`, `{vault_path}/Areas/Health/Training-State.md`, and any other clearly relevant project or task notes.\nOnly flag meaningful patterns that have persisted for more than 7 days.\nKeep the report concise and Discord-friendly: at most 3 drift items, each with Decision, Reality, Duration, and Action, followed by a short Alignment Check and Summary.\n\n**Current Time:** {current_datetime}",
       "notify": {
         "type": "webhook",
-        "url_env": "DISCORD_WEBHOOK_URL",
+        "url_env": "DISCORD_WEBHOOK_PROJECTS",
         "username": "ATLAS Context Drift"
       }
     },
@@ -166,7 +166,7 @@
       "command": "{bot_dir}/cron/med_reminder.sh",
       "notify": {
         "type": "webhook",
-        "url_env": "DISCORD_WEBHOOK_URL",
+        "url_env": "DISCORD_WEBHOOK_HEALTH",
         "username": "ATLAS Medication",
         "suppress_if_contains": "NO_ALERT"
       }
@@ -184,7 +184,7 @@
       "prompt": "Compare the medication vault file against the bot's operational config and update the config if they've drifted.\n\n**Current Time:** {current_datetime}\n\n## Instructions\n\n1. Read `{vault_path}/Areas/Health/Medications.md` \u2014 this is the source of truth for medication names, doses, schedules, and protocols.\n2. Read `{bot_dir}/meds.json` \u2014 this is the operational config used by the bot for reminders, logging, and briefings.\n3. Focus on medications with an active or current protocol right now. Ignore historical dosing logs, supply notes, future transition plans, and medications explicitly marked completed/discontinued unless that status means an existing config entry should be removed.\n4. Treat planned future medications (for example sections that say they start later) as not yet active; do not add them to the config until the vault marks them current.\n5. Compare the active/current medications against the config. Check for:\n   - New active medications in the vault not in the config\n   - Dose changes (e.g., 2mg \u2192 4mg)\n   - Reminder schedule changes (days/times)\n   - Medications in the config that are no longer active\n6. If they match: output `NO_ALERT` and nothing else.\n7. If they differ: update `{bot_dir}/meds.json` to match the vault. Preserve the JSON schema (id, name, display_name, location, vault_table_marker, entry_format, schedule). Output a concise summary of what changed.",
       "notify": {
         "type": "webhook",
-        "url_env": "DISCORD_WEBHOOK_URL",
+        "url_env": "DISCORD_WEBHOOK_HEALTH",
         "username": "ATLAS Config Sync",
         "suppress_if_contains": "NO_ALERT"
       }
@@ -232,7 +232,7 @@
       "prompt": "Run the health-pattern-monitor skill.\n\n**Current Time:** {current_datetime}",
       "notify": {
         "type": "webhook",
-        "url_env": "DISCORD_WEBHOOK_URL",
+        "url_env": "DISCORD_WEBHOOK_HEALTH",
         "username": "ATLAS Health Monitor",
         "suppress_if_contains": "NO_ALERT"
       }
@@ -250,7 +250,7 @@
       "prompt": "Generate a concise second-brain librarian digest using the latest vault index.\nUse the preloaded vault index as the primary source and only read additional notes if the index is genuinely insufficient.\nKeep the output brief and structured with these sections: Recent Notes, Open Loops, Orphan Notes, Stale Notes, Link Opportunities, Recommended Actions.\n\n**Current Time:** {current_datetime}",
       "notify": {
         "type": "webhook",
-        "url_env": "DISCORD_WEBHOOK_URL",
+        "url_env": "DISCORD_WEBHOOK_PROJECTS",
         "username": "ATLAS Librarian"
       }
     },
@@ -277,7 +277,7 @@
       "prompt": "Run the weekly-review skill for the past 7 days.\n\n**Current Time:** {current_datetime}",
       "notify": {
         "type": "webhook",
-        "url_env": "DISCORD_WEBHOOK_URL",
+        "url_env": "DISCORD_WEBHOOK_BRIEFINGS",
         "username": "ATLAS Weekly Review"
       }
     }

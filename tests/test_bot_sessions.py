@@ -35,6 +35,15 @@ class TestEnsureChannelSession:
     @pytest.fixture(autouse=True)
     def _patch(self, tmp_path, sessions_dir, monkeypatch):
         monkeypatch.setenv("ATLAS_AGENT_PROVIDER", "claude")
+        monkeypatch.delenv("ATLAS_CONFIGURED_CHANNELS", raising=False)
+        for key in (
+            "ATLAS_CHANNEL_ID_ATLAS",
+            "ATLAS_CHANNEL_ID_HEALTH",
+            "ATLAS_CHANNEL_ID_PROJECTS",
+            "ATLAS_CHANNEL_ID_BRIEFINGS",
+            "ATLAS_CHANNEL_ID_ATLAS_DEV",
+        ):
+            monkeypatch.delenv(key, raising=False)
         monkeypatch.setattr(bot, "SESSIONS_DIR", str(sessions_dir))
         bot_dir = tmp_path / "bot"
         (bot_dir / ".claude" / "skills").mkdir(parents=True)
@@ -60,11 +69,14 @@ class TestEnsureChannelSession:
         assert claude_dir.is_dir()
 
     def test_writes_settings_json(self):
-        bot.ensure_channel_session(100)
+        bot.ensure_channel_session(100, channel_name="health")
         settings = self.sessions_dir / "100" / ".claude" / "settings.json"
         assert settings.exists()
         data = json.loads(settings.read_text())
         assert "hooks" in data
+        session_start_hooks = data["hooks"]["SessionStart"][0]["hooks"]
+        commands = [hook["command"] for hook in session_start_hooks]
+        assert "ATLAS-Channel-Role.md" in commands[1]
 
     def test_writes_permissions_json(self):
         bot.ensure_channel_session(100)
@@ -174,13 +186,25 @@ class TestEnsureChannelSession:
         assert "garmin_workout_fallback.py" in contents
 
     def test_writes_provider_neutral_session_metadata(self):
-        bot.ensure_channel_session(100)
+        bot.ensure_channel_session(100, channel_name="health")
         metadata_file = self.sessions_dir / "100" / "ATLAS-Session.json"
         assert metadata_file.exists()
         data = json.loads(metadata_file.read_text())
         assert data["active_provider"] == "claude"
         assert data["channel_dir"].endswith("/100")
         assert data["skills_dir"].endswith("/.claude/skills")
+        assert data["channel_id"] == 100
+        assert data["channel_name"] == "health"
+        assert data["channel_key"] == "health"
+        assert data["default_model"] == "opus"
+
+    def test_writes_channel_role_context(self):
+        bot.ensure_channel_session(100, channel_name="health")
+        role_file = self.sessions_dir / "100" / "ATLAS-Channel-Role.md"
+        assert role_file.exists()
+        contents = role_file.read_text()
+        assert "Channel: #health" in contents
+        assert "health-pattern-monitor" in contents
 
 
 class TestResetChannelSession:

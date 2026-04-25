@@ -7,64 +7,105 @@ set -euo pipefail
 export TZ="America/Los_Angeles"
 
 DATE=$(date +%Y-%m-%d)
-CHANNEL_ID="${DISCORD_CHANNEL_ID:?DISCORD_CHANNEL_ID not set}"
 BOT_DIR="${BOT_DIR:?BOT_DIR not set}"
-SESSION_DIR="${BOT_DIR}/sessions/${CHANNEL_ID}"
-ARCHIVE_DIR="${SESSION_DIR}/.archive/${DATE}"
-PROVIDER_PRIVATE_DIR="${ARCHIVE_DIR}/provider-private"
+SESSIONS_ROOT="${BOT_DIR}/sessions"
 
 echo "=== ATLAS Session Archive: ${DATE} ==="
 
-# 1. Create archive directory
-mkdir -p "${ARCHIVE_DIR}"
-mkdir -p "${PROVIDER_PRIVATE_DIR}"
+archive_session() {
+    local session_dir="$1"
+    local channel_id
+    local archive_dir
+    local provider_private_dir
+    local claude_projects_root
+    local claude_project_dir
 
-# 2. Archive current session harness config/state
-if [ -d "${SESSION_DIR}/.claude" ]; then
-    echo "Archiving .claude directory..."
-    # Preserve symlinks like `.claude/skills` instead of recursively copying their targets.
-    cp -a "${SESSION_DIR}/.claude" "${ARCHIVE_DIR}/"
-else
-    echo "No .claude directory found to archive"
+    channel_id=$(basename "${session_dir}")
+    archive_dir="${session_dir}/.archive/${DATE}"
+    provider_private_dir="${archive_dir}/provider-private"
+
+    echo "--- Archiving session ${channel_id} ---"
+
+    # 1. Create archive directory
+    mkdir -p "${archive_dir}"
+    mkdir -p "${provider_private_dir}"
+
+    # 2. Archive current session harness config/state
+    if [ -d "${session_dir}/.claude" ]; then
+        echo "Archiving .claude directory for ${channel_id}..."
+        # Preserve symlinks like `.claude/skills` instead of recursively copying their targets.
+        cp -a "${session_dir}/.claude" "${archive_dir}/"
+    else
+        echo "No .claude directory found for ${channel_id}"
+    fi
+
+    # 2b. Archive ATLAS-managed session helper files if present
+    for helper in \
+        AGENTS.md \
+        ATLAS-Calendar-Context.md \
+        ATLAS-Channel-Role.md \
+        ATLAS-Garmin-Workout-Helper.md \
+        ATLAS-Workout-Postwrite.md \
+        ATLAS-Session.json \
+        .atlas-codex-session-started; do
+        if [ -e "${session_dir}/${helper}" ]; then
+            cp -a "${session_dir}/${helper}" "${archive_dir}/"
+        fi
+    done
+
+    # 3. Archive provider-private persisted session state if present
+    claude_projects_root="${HOME}/.claude/projects"
+    claude_project_dir=""
+    if [ -d "${claude_projects_root}" ]; then
+        claude_project_dir=$(
+            find "${claude_projects_root}" -path "*sessions-${channel_id}*" -type d -print -quit 2>/dev/null || true
+        )
+    fi
+    if [ -n "${claude_project_dir}" ] && [ -d "${claude_project_dir}" ]; then
+        echo "Archiving Claude project directory for ${channel_id}..."
+        cp -a "${claude_project_dir}" "${provider_private_dir}/claude-project"
+    else
+        echo "No Claude project directory found for ${channel_id}"
+    fi
+
+    # 4. Reset session harness config (will be recreated on next message)
+    echo "Resetting session ${channel_id}..."
+    if [ -d "${session_dir}/.claude" ]; then
+        rm -rf "${session_dir}/.claude"
+        echo "Session ${channel_id} reset complete"
+    else
+        echo "No .claude directory to reset for ${channel_id}"
+    fi
+
+    # 5. Reset Codex session helper files
+    rm -f \
+        "${session_dir}/AGENTS.md" \
+        "${session_dir}/ATLAS-Calendar-Context.md" \
+        "${session_dir}/ATLAS-Channel-Role.md" \
+        "${session_dir}/ATLAS-Garmin-Workout-Helper.md" \
+        "${session_dir}/ATLAS-Workout-Postwrite.md" \
+        "${session_dir}/ATLAS-Session.json" \
+        "${session_dir}/.atlas-codex-session-started"
+
+    echo "--- Archive complete: ${archive_dir} ---"
+}
+
+if [ ! -d "${SESSIONS_ROOT}" ]; then
+    echo "No sessions directory found: ${SESSIONS_ROOT}"
+    exit 0
 fi
 
-# 2b. Archive ATLAS-managed session helper files if present
-for helper in AGENTS.md ATLAS-Calendar-Context.md ATLAS-Workout-Postwrite.md ATLAS-Session.json .atlas-codex-session-started; do
-    if [ -e "${SESSION_DIR}/${helper}" ]; then
-        cp -a "${SESSION_DIR}/${helper}" "${ARCHIVE_DIR}/"
+found=0
+for session_dir in "${SESSIONS_ROOT}"/*/; do
+    [ -d "${session_dir}" ] || continue
+    if [ -d "${session_dir}/.claude" ]; then
+        found=1
+        archive_session "${session_dir%/}"
     fi
 done
 
-# 3. Archive provider-private persisted session state if present
-CLAUDE_PROJECTS_ROOT="${HOME}/.claude/projects"
-CLAUDE_PROJECT_DIR=""
-if [ -d "${CLAUDE_PROJECTS_ROOT}" ]; then
-    CLAUDE_PROJECT_DIR=$(
-        find "${CLAUDE_PROJECTS_ROOT}" -path "*sessions-${CHANNEL_ID}*" -type d -print -quit 2>/dev/null || true
-    )
-fi
-if [ -n "${CLAUDE_PROJECT_DIR}" ] && [ -d "${CLAUDE_PROJECT_DIR}" ]; then
-    echo "Archiving Claude project directory..."
-    cp -a "${CLAUDE_PROJECT_DIR}" "${PROVIDER_PRIVATE_DIR}/claude-project"
-else
-    echo "No Claude project directory found to archive"
+if [ "${found}" -eq 0 ]; then
+    echo "No active session directories found to archive"
 fi
 
-# 4. Reset session harness config (will be recreated on next message)
-echo "Resetting session..."
-if [ -d "${SESSION_DIR}/.claude" ]; then
-    rm -rf "${SESSION_DIR}/.claude"
-    echo "Session reset complete"
-else
-    echo "No .claude directory to reset"
-fi
-
-# 5. Reset Codex session helper files
-rm -f "${SESSION_DIR}/AGENTS.md" \
-    "${SESSION_DIR}/ATLAS-Calendar-Context.md" \
-    "${SESSION_DIR}/ATLAS-Workout-Postwrite.md" \
-    "${SESSION_DIR}/ATLAS-Session.json" \
-    "${SESSION_DIR}/.atlas-codex-session-started"
-
-echo "=== Archive complete: ${ARCHIVE_DIR} ==="
-echo "=== Session reset for next day ==="
+echo "=== Session archive sweep complete ==="

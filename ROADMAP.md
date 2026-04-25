@@ -12,24 +12,27 @@ The user wants to evolve ATLAS from a reactive chat assistant into a proactive, 
 
 **Goal**: Organize Discord into topic channels and improve cross-session memory.
 
-### 1.1 Multi-Channel Discord Setup
+### 1.1 Multi-Channel Discord Setup ✅
 
-Create dedicated channels with per-channel behavior:
+Dedicated channels now have configured activation, channel role context, and cron routing:
 
-| Channel      | Purpose                         | Webhook Routing                                |
-| ------------ | ------------------------------- | ---------------------------------------------- |
-| `#atlas`     | General conversation (existing) | Default                                        |
-| `#health`    | Workouts, meds, Oura, training  | Morning briefing, med reminders, health alerts |
-| `#projects`  | Project work, tasks, decisions  | Stale project alerts, task nudges              |
-| `#briefings` | Read-only briefings and reports | Daily summary, weekly/monthly reviews          |
+| Channel      | Purpose                                       | Webhook Routing                                |
+| ------------ | --------------------------------------------- | ---------------------------------------------- |
+| `#atlas`     | General conversation and catch-all work       | Fallback/default                               |
+| `#health`    | Workouts, meds, Oura, WHOOP, Garmin, training | Training planner, med reminders, health alerts |
+| `#projects`  | Project work, tasks, decisions                | Stale project, context drift, librarian digest |
+| `#briefings` | Read-mostly briefings and reports             | Morning briefing, daily summary, weekly review |
+| `#atlas-dev` | ATLAS harness and operational alerts          | MCP health check, session archive              |
 
-**Implementation**:
+**Implemented**:
 
-- **Modify `bot.py`**: Replace hardcoded `CHANNEL_SETTINGS` with a `CHANNEL_CONFIGS` dict keyed by channel name. Each config defines: hooks, permissions, model, and a role description injected into the system prompt. Change `on_message` activation check from single channel name to set of configured channels.
-- **Create `channel_configs.py`**: Extract per-channel configuration (hooks, permissions, role descriptions) into its own module.
-- **Create `hooks/health_context.sh`**: Health-specific SessionStart hook — injects Training-State.md summary, recent workout logs, Medications.md, current Oura scores.
-- **Modify `cron/jobs.json`**: Route each job's webhook to the appropriate channel via `notify.url_env` (already supported by dispatcher).
-- **Add to `.env`**: `DISCORD_WEBHOOK_HEALTH`, `DISCORD_WEBHOOK_BRIEFINGS`, `DISCORD_WEBHOOK_PROJECTS`.
+- `channel_configs.py` defines configured channels, role descriptions, default models, webhook env vars, and optional channel-ID pins.
+- `bot.py` auto-activates in configured channels using channel ID first, channel name second.
+- Each session gets `ATLAS-Channel-Role.md`, surfaced through `SessionStart` and generated Codex session instructions.
+- `cron/jobs.json` routes jobs to channel-specific webhooks with fallback through `DISCORD_WEBHOOK_ATLAS` and `DISCORD_WEBHOOK_URL`.
+- Legacy single-channel fallbacks remain supported.
+
+Deferred: hard skill restrictions and per-channel hook/permission sets. v1 uses soft preferred-skill hints in channel role context.
 
 ### 1.2 Wire Recent Summaries into SessionStart ✅
 

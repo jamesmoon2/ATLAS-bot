@@ -29,6 +29,7 @@ USER_SELECTABLE_MODELS = {
 
 CODEX_SESSION_MARKER = ".atlas-codex-session-started"
 CODEX_AGENTS_FILENAME = "AGENTS.md"
+ATLAS_CHANNEL_ROLE_FILENAME = "ATLAS-Channel-Role.md"
 CODEX_CALENDAR_CONTEXT_FILENAME = "ATLAS-Calendar-Context.md"
 CODEX_GARMIN_WORKOUT_HELP_FILENAME = "ATLAS-Garmin-Workout-Helper.md"
 CODEX_WORKOUT_HELP_FILENAME = "ATLAS-Workout-Postwrite.md"
@@ -177,9 +178,11 @@ def _build_codex_agents_content(
     system_prompt_path: str,
     context_path: str,
     channel_dir: str,
+    channel_role_path: str | None = None,
 ) -> str:
     """Render a session-scoped AGENTS.md file for Codex-backed Discord sessions."""
     system_prompt = _read_text_if_exists(system_prompt_path).strip()
+    channel_role = _read_text_if_exists(channel_role_path).strip() if channel_role_path else ""
     persistent_context = _read_text_if_exists(context_path).strip()
     skills_dir = resolve_skills_dir(bot_dir)
     calendar_context_path = Path(channel_dir) / CODEX_CALENDAR_CONTEXT_FILENAME
@@ -194,6 +197,10 @@ def _build_codex_agents_content(
         "## System Prompt",
         "",
         system_prompt or "System prompt unavailable.",
+        "",
+        "## Channel Role",
+        "",
+        channel_role or "No channel-specific role configured.",
         "",
         "## Persistent Context",
         "",
@@ -272,10 +279,14 @@ def _build_session_metadata(
     bot_dir: str,
     system_prompt_path: str,
     context_path: str,
+    channel_id: int | None = None,
+    channel_name: str | None = None,
+    channel_key: str | None = None,
+    default_model: str | None = None,
 ) -> dict[str, Any]:
     """Render provider-neutral session metadata owned by ATLAS."""
     now = datetime.now(timezone.utc).isoformat()
-    return {
+    metadata = {
         "channel_dir": str(Path(channel_dir).resolve()),
         "active_provider": get_agent_provider(),
         "skills_dir": str(resolve_skills_dir(bot_dir).resolve()),
@@ -283,6 +294,15 @@ def _build_session_metadata(
         "context_path": str(Path(context_path).resolve()),
         "updated_at": now,
     }
+    if channel_id is not None:
+        metadata["channel_id"] = channel_id
+    if channel_name is not None:
+        metadata["channel_name"] = channel_name
+    if channel_key is not None:
+        metadata["channel_key"] = channel_key
+    if default_model is not None:
+        metadata["default_model"] = default_model
+    return metadata
 
 
 def prepare_session_dir(
@@ -293,11 +313,20 @@ def prepare_session_dir(
     context_path: str,
     channel_settings: dict[str, Any],
     channel_permissions: dict[str, Any],
+    channel_role_context: str | None = None,
+    channel_id: int | None = None,
+    channel_name: str | None = None,
+    channel_key: str | None = None,
+    default_model: str | None = None,
 ) -> None:
     """Prepare a channel session directory for both Claude and Codex."""
     session_path = Path(channel_dir)
     claude_dir = session_path / ".claude"
     claude_dir.mkdir(parents=True, exist_ok=True)
+
+    channel_role_path = session_path / ATLAS_CHANNEL_ROLE_FILENAME
+    if channel_role_context is not None:
+        atomic_write_text(channel_role_path, channel_role_context)
 
     project_settings_path = Path(bot_dir) / ".claude" / "settings.json"
     settings_path = claude_dir / "settings.json"
@@ -350,6 +379,7 @@ def prepare_session_dir(
             system_prompt_path=system_prompt_path,
             context_path=context_path,
             channel_dir=channel_dir,
+            channel_role_path=str(channel_role_path),
         ),
     )
 
@@ -361,6 +391,10 @@ def prepare_session_dir(
             bot_dir=bot_dir,
             system_prompt_path=system_prompt_path,
             context_path=context_path,
+            channel_id=channel_id,
+            channel_name=channel_name,
+            channel_key=channel_key,
+            default_model=default_model,
         )
     )
     metadata.setdefault("created_at", metadata["updated_at"])
@@ -1041,6 +1075,7 @@ def _should_skip_codex_sessionstart_command(
     *,
     system_prompt_path: str,
     context_path: str,
+    channel_role_path: str | None = None,
 ) -> bool:
     """Skip commands already represented in the generated AGENTS.md."""
     try:
@@ -1049,6 +1084,8 @@ def _should_skip_codex_sessionstart_command(
         return False
 
     if parts[:2] == ["cat", system_prompt_path]:
+        return True
+    if channel_role_path and parts[:2] == ["cat", channel_role_path]:
         return True
     if parts[:2] == ["cat", context_path]:
         return True
@@ -1077,6 +1114,7 @@ async def _build_codex_session_start_prelude(
                 command,
                 system_prompt_path=system_prompt_path,
                 context_path=context_path,
+                channel_role_path=str(Path(channel_dir) / ATLAS_CHANNEL_ROLE_FILENAME),
             ):
                 continue
             output = await _capture_shell(command, env=hook_env, cwd=channel_dir)

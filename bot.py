@@ -23,6 +23,7 @@ from agent_runner import (
 )
 from atlas_config import build_channel_permissions, build_channel_settings
 from atlas_utils import atomic_write_json, atomic_write_text
+from channel_configs import ChannelConfig, get_channel_config, render_channel_role_context
 from med_config import find_med_by_content
 
 load_dotenv()
@@ -76,16 +77,42 @@ CHANNEL_SETTINGS = build_channel_settings(
 CHANNEL_PERMISSIONS = build_channel_permissions()
 
 
-def ensure_channel_session(channel_id: int) -> str:
+def _build_session_settings(channel_dir: str) -> dict:
+    role_path = os.path.join(channel_dir, "ATLAS-Channel-Role.md")
+    return build_channel_settings(
+        bot_dir=BOT_DIR,
+        system_prompt_path=SYSTEM_PROMPT_PATH,
+        context_path=CONTEXT_PATH,
+        channel_role_path=role_path,
+    )
+
+
+def ensure_channel_session(
+    channel_id: int,
+    *,
+    channel_name: str = "",
+    channel_config: ChannelConfig | None = None,
+) -> str:
     """Create and configure a session directory for a channel."""
     channel_dir = os.path.join(SESSIONS_DIR, str(channel_id))
+    resolved_config = channel_config or get_channel_config(
+        channel_id=channel_id,
+        channel_name=channel_name,
+    )
+    default_model = resolved_config.default_model if resolved_config else "opus"
+    role_context = render_channel_role_context(resolved_config, channel_name=channel_name)
     prepare_session_dir(
         channel_dir,
         bot_dir=BOT_DIR,
         system_prompt_path=SYSTEM_PROMPT_PATH,
         context_path=CONTEXT_PATH,
-        channel_settings=CHANNEL_SETTINGS,
+        channel_settings=_build_session_settings(channel_dir),
         channel_permissions=CHANNEL_PERMISSIONS,
+        channel_role_context=role_context,
+        channel_id=channel_id,
+        channel_name=channel_name or None,
+        channel_key=resolved_config.key if resolved_config else None,
+        default_model=default_model,
     )
     return channel_dir
 
@@ -110,12 +137,22 @@ def reset_channel_session(channel_id: int) -> bool:
     return cleared
 
 
-async def download_attachments(channel_id: int, attachments: list) -> list[str]:
+async def download_attachments(
+    channel_id: int,
+    attachments: list,
+    *,
+    channel_name: str = "",
+    channel_config: ChannelConfig | None = None,
+) -> list[str]:
     """Download Discord attachments to session directory."""
     if not attachments:
         return []
 
-    channel_dir = ensure_channel_session(channel_id)
+    channel_dir = ensure_channel_session(
+        channel_id,
+        channel_name=channel_name,
+        channel_config=channel_config,
+    )
     attachments_dir = os.path.join(channel_dir, "attachments")
     os.makedirs(attachments_dir, exist_ok=True)
 
@@ -251,7 +288,11 @@ async def handle_help_command(message, content: str) -> bool:
     return True
 
 
-async def handle_model_command(message, content: str) -> bool:
+async def handle_model_command(
+    message,
+    content: str,
+    channel_config: ChannelConfig | None = None,
+) -> bool:
     """Handle model commands. Returns whether a command was handled."""
     if not content.lower().startswith("!model"):
         return False
@@ -259,14 +300,19 @@ async def handle_model_command(message, content: str) -> bool:
     parts = content.split()
     available_models = get_user_selectable_models()
     if len(parts) == 1:
-        current = get_channel_model(message.channel.id)
+        current = get_channel_model(message.channel.id, channel_config)
         await message.channel.send(f"Current model: {current} (provider: {get_agent_provider()})")
         return True
 
     if len(parts) == 2:
         model = parts[1].lower()
         if model in available_models:
-            set_channel_model(message.channel.id, model)
+            set_channel_model(
+                message.channel.id,
+                model,
+                channel_config=channel_config,
+                channel_name=message.channel.name,
+            )
             await message.channel.send(f"Switched to {model}.")
             return True
 
@@ -277,7 +323,11 @@ async def handle_model_command(message, content: str) -> bool:
     return False
 
 
-async def handle_librarian_command(message, content: str) -> bool:
+async def handle_librarian_command(
+    message,
+    content: str,
+    channel_config: ChannelConfig | None = None,
+) -> bool:
     """Handle librarian commands. Returns whether a command was handled."""
     librarian_commands = {
         "!recall": "recall",
@@ -305,7 +355,12 @@ async def handle_librarian_command(message, content: str) -> bool:
 
         async with message.channel.typing():
             async with lock:
-                response = await run_agent(message.channel.id, prompt)
+                response = await run_agent(
+                    message.channel.id,
+                    prompt,
+                    channel_name=message.channel.name,
+                    channel_config=channel_config,
+                )
 
         await send_chunked_response(message.channel, response)
         return True
@@ -313,19 +368,29 @@ async def handle_librarian_command(message, content: str) -> bool:
     return False
 
 
-def get_channel_model(channel_id: int) -> str:
-    """Get the model preference for a channel, default to opus."""
+def get_channel_model(channel_id: int, channel_config: ChannelConfig | None = None) -> str:
+    """Get the model preference for a channel."""
     channel_dir = os.path.join(SESSIONS_DIR, str(channel_id))
     model_file = os.path.join(channel_dir, "model.txt")
     if os.path.exists(model_file):
         with open(model_file) as f:
             return resolve_model_for_provider(f.read().strip())
-    return resolve_model_for_provider("opus")
+    default_model = channel_config.default_model if channel_config else "opus"
+    return resolve_model_for_provider(default_model)
 
 
-def set_channel_model(channel_id: int, model: str) -> None:
+def set_channel_model(
+    channel_id: int,
+    model: str,
+    channel_config: ChannelConfig | None = None,
+    channel_name: str = "",
+) -> None:
     """Set the model preference for a channel."""
-    channel_dir = ensure_channel_session(channel_id)
+    channel_dir = ensure_channel_session(
+        channel_id,
+        channel_name=channel_name,
+        channel_config=channel_config,
+    )
     model_file = os.path.join(channel_dir, "model.txt")
     atomic_write_text(model_file, model)
 
@@ -340,12 +405,26 @@ async def run_claude(channel_id: int, message_content: str) -> str:
 
 
 async def run_agent(
-    channel_id: int, message_content: str, attachment_paths: list[str] | None = None
+    channel_id: int,
+    message_content: str,
+    attachment_paths: list[str] | None = None,
+    *,
+    channel_name: str = "",
+    channel_config: ChannelConfig | None = None,
 ) -> str:
     """Run the configured agent provider for this channel."""
     try:
-        channel_dir = ensure_channel_session(channel_id)
-        model = get_channel_model(channel_id)
+        resolved_config = channel_config or get_channel_config(
+            channel_id=channel_id,
+            channel_name=channel_name,
+        )
+        channel_dir = ensure_channel_session(
+            channel_id,
+            channel_name=channel_name,
+            channel_config=resolved_config,
+        )
+        model = get_channel_model(channel_id, resolved_config)
+        channel_settings = _build_session_settings(channel_dir)
         return await run_channel_message(
             channel_id=channel_id,
             prompt=message_content,
@@ -356,7 +435,7 @@ async def run_agent(
             vault_path=VAULT_PATH,
             system_prompt_path=SYSTEM_PROMPT_PATH,
             context_path=CONTEXT_PATH,
-            channel_settings=CHANNEL_SETTINGS,
+            channel_settings=channel_settings,
         )
     except Exception as e:
         return f"Error: {str(e)}"
@@ -379,11 +458,15 @@ async def on_message(message):
         return
 
     is_mentioned = client.user.mentioned_in(message)
-    is_atlas_channel = message.channel.name.lower() == "atlas"
+    channel_config = get_channel_config(
+        channel_id=message.channel.id,
+        channel_name=message.channel.name,
+    )
+    is_configured_channel = channel_config is not None and channel_config.auto_activate
 
-    print(f"  Mentioned: {is_mentioned}, Atlas channel: {is_atlas_channel}")
+    print(f"  Mentioned: {is_mentioned}, Configured channel: {is_configured_channel}")
 
-    if not (is_mentioned or is_atlas_channel):
+    if not (is_mentioned or is_configured_channel):
         return
 
     content = strip_bot_mentions(message.content, message.mentions)
@@ -394,16 +477,21 @@ async def on_message(message):
     if await handle_help_command(message, content):
         return
 
-    if await handle_model_command(message, content):
+    if await handle_model_command(message, content, channel_config):
         return
 
-    if await handle_librarian_command(message, content):
+    if await handle_librarian_command(message, content, channel_config):
         return
 
     # Download attachments (images, PDFs, etc.)
     downloaded_files = []
     if message.attachments:
-        downloaded_files = await download_attachments(message.channel.id, message.attachments)
+        downloaded_files = await download_attachments(
+            message.channel.id,
+            message.attachments,
+            channel_name=message.channel.name,
+            channel_config=channel_config,
+        )
         if downloaded_files:
             print(f"  Downloaded {len(downloaded_files)} attachment(s)")
 
@@ -422,7 +510,13 @@ async def on_message(message):
 
     async with message.channel.typing():
         async with lock:
-            response = await run_agent(message.channel.id, prompt, downloaded_files)
+            response = await run_agent(
+                message.channel.id,
+                prompt,
+                downloaded_files,
+                channel_name=message.channel.name,
+                channel_config=channel_config,
+            )
 
     print(f"  Response length: {len(response)}")
 

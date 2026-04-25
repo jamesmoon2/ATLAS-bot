@@ -3,6 +3,7 @@
 import pytest
 
 import bot
+from channel_configs import ChannelConfig
 
 
 class TestGetChannelModel:
@@ -16,6 +17,15 @@ class TestGetChannelModel:
 
     def test_default_is_opus(self):
         assert bot.get_channel_model(100) == "opus"
+
+    def test_default_comes_from_channel_config(self):
+        config = ChannelConfig(
+            key="test",
+            role_description="Test channel",
+            webhook_env="DISCORD_WEBHOOK_TEST",
+            default_model="sonnet",
+        )
+        assert bot.get_channel_model(100, config) == "sonnet"
 
     def test_reads_from_file(self):
         channel_dir = self.sessions_dir / "100"

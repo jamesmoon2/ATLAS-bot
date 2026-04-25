@@ -50,43 +50,46 @@ def build_channel_settings(
     bot_dir: str,
     system_prompt_path: str,
     context_path: str,
+    channel_role_path: str | None = None,
     include_post_tool_hooks: bool = True,
 ) -> dict[str, Any]:
     """Build provider session hook settings for a channel/session."""
-    hooks: dict[str, Any] = {
-        "SessionStart": [
+    session_start_hooks = [
+        {"type": "command", "command": shell_command("cat", system_prompt_path)},
+    ]
+    if channel_role_path:
+        session_start_hooks.append(
+            {"type": "command", "command": shell_command("cat", channel_role_path)}
+        )
+    session_start_hooks.extend(
+        [
+            {"type": "command", "command": shell_command("cat", context_path)},
+            {"type": "command", "command": "echo '\n---\n# Session Context'"},
             {
-                "hooks": [
-                    {"type": "command", "command": shell_command("cat", system_prompt_path)},
-                    {"type": "command", "command": shell_command("cat", context_path)},
-                    {"type": "command", "command": "echo '\n---\n# Session Context'"},
-                    {
-                        "type": "command",
-                        "command": "TZ='America/Los_Angeles' date '+**Current Time:** %A, %B %d, %Y %H:%M %Z'",
-                    },
-                    {
-                        "type": "command",
-                        "command": shlex.quote(os.path.join(bot_dir, "hooks", "tasks_summary.sh")),
-                    },
-                    {
-                        "type": "command",
-                        "command": shlex.quote(os.path.join(bot_dir, "hooks", "recent_changes.sh")),
-                    },
-                    {
-                        "type": "command",
-                        "command": shlex.quote(
-                            os.path.join(bot_dir, "hooks", "recent_summaries.sh")
-                        ),
-                    },
-                    {
-                        "type": "command",
-                        "command": shlex.quote(
-                            os.path.join(bot_dir, "hooks", "librarian_context.sh")
-                        ),
-                    },
-                ]
-            }
-        ],
+                "type": "command",
+                "command": "TZ='America/Los_Angeles' date '+**Current Time:** %A, %B %d, %Y %H:%M %Z'",
+            },
+            {
+                "type": "command",
+                "command": shlex.quote(os.path.join(bot_dir, "hooks", "tasks_summary.sh")),
+            },
+            {
+                "type": "command",
+                "command": shlex.quote(os.path.join(bot_dir, "hooks", "recent_changes.sh")),
+            },
+            {
+                "type": "command",
+                "command": shlex.quote(os.path.join(bot_dir, "hooks", "recent_summaries.sh")),
+            },
+            {
+                "type": "command",
+                "command": shlex.quote(os.path.join(bot_dir, "hooks", "librarian_context.sh")),
+            },
+        ]
+    )
+
+    hooks: dict[str, Any] = {
+        "SessionStart": [{"hooks": session_start_hooks}],
         "PreToolUse": [
             {
                 "matcher": matcher,

@@ -42,6 +42,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `run_cron.sh` entry point called every minute via system crontab
 - systemd service and logrotate configs (`etc/`)
 - `DISCORD_CHANNEL_ID` and `CONTEXT_PATH` environment variables
+- `channel_configs.py` for configured Discord channel roles, webhook env vars, channel-ID pins, and preferred skill hints
+- Multi-channel Discord auto-activation for `#atlas`, `#health`, `#projects`, `#briefings`, and `#atlas-dev`
+- Per-session `ATLAS-Channel-Role.md` role context injected at session start
 - Pre-commit hooks with ruff (lint + format), prettier, and standard checks
 
 ### Changed
@@ -62,6 +65,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Calendar context hook expanded to full 7-day ISO date table
 - Hooks now span three event types: SessionStart, PreToolUse, PostToolUse
 - `DISCORD_WEBHOOK_URL` used for cron job notifications (was daily digest)
+- Cron notifications now route to channel-specific webhooks with fallback to `DISCORD_WEBHOOK_ATLAS` and legacy `DISCORD_WEBHOOK_URL`
+- `send_message.py` supports `--channel` and `--channel-id` while preserving the legacy positional form
+- `session_archive.sh` archives all active session directories instead of requiring `DISCORD_CHANNEL_ID`
 - Recent daily summaries now injected into SessionStart context via `recent_summaries.sh`
 - Discord session skills now point directly at the repo-local `.claude/skills` directory for portability
 
@@ -75,6 +81,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 - `daily_digest.py` and `run_digest.sh` (replaced by cron dispatcher and morning-briefing skill)
+- Legacy `cron/context_drift.sh` and `cron/task_triage.sh` direct-run behavior; use `cron/jobs.json` through `cron/dispatcher.py`
 
 ### Security
 

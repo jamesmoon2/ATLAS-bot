@@ -12,6 +12,15 @@ from tests.conftest import AsyncContextManager
 @pytest.fixture(autouse=True)
 def _patch_env(sessions_dir, monkeypatch):
     monkeypatch.setenv("ATLAS_AGENT_PROVIDER", "claude")
+    monkeypatch.delenv("ATLAS_CONFIGURED_CHANNELS", raising=False)
+    for key in (
+        "ATLAS_CHANNEL_ID_ATLAS",
+        "ATLAS_CHANNEL_ID_HEALTH",
+        "ATLAS_CHANNEL_ID_PROJECTS",
+        "ATLAS_CHANNEL_ID_BRIEFINGS",
+        "ATLAS_CHANNEL_ID_ATLAS_DEV",
+    ):
+        monkeypatch.delenv(key, raising=False)
     monkeypatch.setattr(bot, "SESSIONS_DIR", str(sessions_dir))
     bot.channel_locks.clear()
 
@@ -62,6 +71,20 @@ class TestMessageFiltering:
         msg = _make_message("!help", channel_name="atlas")
         await bot.on_message(msg)
         msg.channel.send.assert_called_once()
+
+    @pytest.mark.asyncio
+    @pytest.mark.parametrize("channel_name", ["health", "projects", "briefings", "atlas-dev"])
+    async def test_configured_channel_processed(self, channel_name):
+        msg = _make_message("!help", channel_name=channel_name)
+        await bot.on_message(msg)
+        msg.channel.send.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_allowlist_channel_ignored_without_mention(self, monkeypatch):
+        monkeypatch.setenv("ATLAS_CONFIGURED_CHANNELS", "atlas,health")
+        msg = _make_message("!help", channel_name="projects")
+        await bot.on_message(msg)
+        msg.channel.send.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_mention_in_other_channel_processed(self):

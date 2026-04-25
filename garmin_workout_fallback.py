@@ -614,15 +614,17 @@ def fetch_workout_snapshot(
         warnings_list.append("Sleep unavailable: Garmin profile did not include a display name.")
 
     hr_zones = _best_effort(
-        lambda: _normalize_hr_zones(
-            _connectapi(
-                resolved_client,
-                f"/activity-service/activity/{resolved_activity_id}/hrTimeInZones",
-                auth_home=resolved_auth_home,
-                optional=True,
+        lambda: (
+            _normalize_hr_zones(
+                _connectapi(
+                    resolved_client,
+                    f"/activity-service/activity/{resolved_activity_id}/hrTimeInZones",
+                    auth_home=resolved_auth_home,
+                    optional=True,
+                )
             )
-        )
-        or [],
+            or []
+        ),
         warnings_list,
         "Heart-rate zones unavailable",
     )
