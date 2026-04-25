@@ -1,5 +1,4 @@
 -r requirements.txt
--r mcp-servers/oura/requirements.txt
 -r mcp-servers/whoop/requirements.txt
 -r mcp-servers/garmin/requirements.txt
 pytest>=8.0
