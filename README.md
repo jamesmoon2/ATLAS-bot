@@ -39,6 +39,7 @@ flowchart TB
     subgraph MCP[MCP Servers]
         Oura[Oura Ring]
         Whoop[WHOOP]
+        Garmin[Garmin Connect]
         Calendar[Google Calendar]
         Gmail[Gmail]
         Weather[Weather]
@@ -123,7 +124,7 @@ stateDiagram-v2
 | **Model Switching**         | Switch models per channel based on the active provider                                         |
 | **Attachment Support**      | Upload images and PDFs to Discord; the active harness reads them from the session directory    |
 | **Scheduled Automation**    | 14 cron jobs: briefings, reminders, archival, health checks, and more                          |
-| **MCP Integrations**        | Oura Ring, WHOOP, Google Calendar, Gmail, and Weather data via MCP servers                     |
+| **MCP Integrations**        | Oura Ring, WHOOP, Garmin, Google Calendar, Gmail, and Weather data via MCP servers             |
 | **ATLAS Skills**            | Reusable skills for briefings, workout logging, training plans, health monitoring, and reviews |
 | **Second Brain Librarian**  | Vault indexing, note recall, open-loop review, orphan-note detection, and twice-weekly digests |
 | **Medication Tracking**     | Config-driven cron reminders (`meds.json`) with checkmark reaction logging to vault files      |
@@ -280,6 +281,9 @@ atlas-bot/
 │   │   ├── mcp_server.py
 │   │   └── README.md
 │   ├── whoop/                # Repo-managed WHOOP MCP server
+│   │   ├── mcp_server.py
+│   │   └── README.md
+│   ├── google_bot/           # Repo-managed Gmail + Google Calendar MCP server
 │   │   ├── mcp_server.py
 │   │   └── README.md
 │   └── credentials/          # OAuth credentials (gitignored)
