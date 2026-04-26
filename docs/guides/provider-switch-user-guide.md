@@ -41,6 +41,33 @@ After changing `.env`, restart the bot service and cron service/process so they 
 ./restart_atlas_services.sh
 ```
 
+ATLAS should have exactly one bot supervisor: the system-level `atlas-bot.service`.
+Do not also start a `systemctl --user` `atlas-bot.service`, or Discord will see
+two live bot connections.
+
+Expected service state:
+
+```bash
+systemctl is-enabled atlas-bot.service
+# enabled
+
+systemctl --user is-enabled atlas-bot.service
+# masked
+
+pgrep -af 'bot\.py'
+# exactly one bot.py process
+```
+
+If the user-level service exists, stop and retire it:
+
+```bash
+systemctl --user stop atlas-bot.service
+systemctl --user disable atlas-bot.service
+mv ~/.config/systemd/user/atlas-bot.service ~/.config/systemd/user/atlas-bot.service.retired
+systemctl --user daemon-reload
+systemctl --user mask atlas-bot.service
+```
+
 Shortcut:
 
 ```bash

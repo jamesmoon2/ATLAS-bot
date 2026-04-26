@@ -241,6 +241,30 @@ Operational notes:
 - A short operator guide lives in
   [docs/guides/provider-switch-user-guide.md](docs/guides/provider-switch-user-guide.md).
 
+### Service Supervision
+
+The canonical bot supervisor is the system-level `atlas-bot.service`. Do not run a second
+`systemctl --user` `atlas-bot.service`; duplicate supervisors create two live Discord bot
+connections.
+
+Expected state:
+
+```bash
+systemctl is-enabled atlas-bot.service        # enabled
+systemctl --user is-enabled atlas-bot.service # masked
+pgrep -af 'bot\.py'                           # one bot.py process
+```
+
+If a user-level unit exists, retire it:
+
+```bash
+systemctl --user stop atlas-bot.service
+systemctl --user disable atlas-bot.service
+mv ~/.config/systemd/user/atlas-bot.service ~/.config/systemd/user/atlas-bot.service.retired
+systemctl --user daemon-reload
+systemctl --user mask atlas-bot.service
+```
+
 ### File Structure
 
 ```
