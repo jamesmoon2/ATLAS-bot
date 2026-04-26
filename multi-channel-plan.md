@@ -1,5 +1,8 @@
 # ATLAS Multi-Channel Plan
 
+Status: implemented. See `docs/channel-user-guide.md` for the user-facing channel guide and
+`README.md` for setup/configuration.
+
 ## Goal
 
 Make ATLAS work as a configured multi-channel Discord system instead of a single
@@ -16,8 +19,8 @@ The target channels are:
 | `#briefings` | Read-mostly daily/weekly summaries, reports, ambient briefings       |
 | `#atlas-dev` | ATLAS harness work, operational alerts, bot development              |
 
-`#atlas-dev` **will** be created as part of this rollout (resolves Open Decision
-#1). `#projects` may be deprecated later if it does not prove useful, but it
+`#atlas-dev` is part of this rollout (resolves Open Decision #1). `#projects`
+may be deprecated later if it does not prove useful, but it
 should be configured now so project/task automation has a clean destination.
 
 ## Default Decisions
@@ -271,19 +274,19 @@ Routing (commit to a single destination per job — no `if X exists else Y`):
 | Job                       | Channel      | `url_env`                   |
 | ------------------------- | ------------ | --------------------------- |
 | `morning_briefing`        | `#briefings` | `DISCORD_WEBHOOK_BRIEFINGS` |
-| `weekly_training_planner` | `#health`    | `DISCORD_WEBHOOK_HEALTH`    |
-| `mcp_health_check`        | `#atlas-dev` | `DISCORD_WEBHOOK_ATLAS_DEV` |
-| `stale_project_detector`  | `#projects`  | `DISCORD_WEBHOOK_PROJECTS`  |
 | `daily_summary`           | `#briefings` | `DISCORD_WEBHOOK_BRIEFINGS` |
-| `session_archive`         | `#atlas-dev` | `DISCORD_WEBHOOK_ATLAS_DEV` |
-| `vault_index_refresh`     | silent       | none                        |
-| `context_drift`           | `#projects`  | `DISCORD_WEBHOOK_PROJECTS`  |
+| `weekly_review`           | `#briefings` | `DISCORD_WEBHOOK_BRIEFINGS` |
+| `weekly_training_planner` | `#health`    | `DISCORD_WEBHOOK_HEALTH`    |
 | `med_reminder`            | `#health`    | `DISCORD_WEBHOOK_HEALTH`    |
 | `med_config_sync`         | `#health`    | `DISCORD_WEBHOOK_HEALTH`    |
-| `oura_context_update`     | silent       | none                        |
 | `health_pattern_monitor`  | `#health`    | `DISCORD_WEBHOOK_HEALTH`    |
+| `oura_context_update`     | silent       | none                        |
+| `stale_project_detector`  | `#projects`  | `DISCORD_WEBHOOK_PROJECTS`  |
+| `context_drift`           | `#projects`  | `DISCORD_WEBHOOK_PROJECTS`  |
 | `librarian_digest`        | `#projects`  | `DISCORD_WEBHOOK_PROJECTS`  |
-| `weekly_review`           | `#briefings` | `DISCORD_WEBHOOK_BRIEFINGS` |
+| `vault_index_refresh`     | silent       | none                        |
+| `mcp_health_check`        | `#atlas-dev` | `DISCORD_WEBHOOK_ATLAS_DEV` |
+| `session_archive`         | `#atlas-dev` | `DISCORD_WEBHOOK_ATLAS_DEV` |
 
 ### 7. Clean Up Single-Channel Assumptions
 

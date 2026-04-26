@@ -13,11 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `meds.json.example` with sanitized placeholder data
 - `med_config.py` shared loader with `load_meds()` and `find_med_by_content()`
 - `med_config_sync` nightly cron job — Claude compares vault `Medications.md` against `meds.json` and auto-updates on drift
-- Cron dispatcher system with 12 scheduled jobs (`cron/dispatcher.py`, `cron/jobs.json`)
+- Cron dispatcher system with 14 scheduled jobs (`cron/dispatcher.py`, `cron/jobs.json`)
 - Model switching per channel (`!model sonnet|opus`, defaults to opus)
 - Attachment support for images and PDFs via Discord uploads
 - MCP integrations: Oura Ring, Google Calendar, Gmail, Weather, Garmin Connect
-- Claude skills system (8 skills: morning-briefing, daily-summary, log-workout, log-cardio, log-medication, weekly-training-planner, health-pattern-monitor, weekly-review)
+- Claude skills system (10 skills: morning-briefing, daily-summary, log-workout, log-cardio, log-medication, weekly-training-planner, health-pattern-monitor, weekly-review, second-brain-librarian, backend-concepts-lesson)
 - Medication tracking with reaction-based dose logging (checkmark reactions on reminders)
 - `send_message.py` for sending messages to Discord channels programmatically
 - Nightly session archive and reset (`cron/session_archive.sh`)
@@ -45,6 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `channel_configs.py` for configured Discord channel roles, webhook env vars, channel-ID pins, and preferred skill hints
 - Multi-channel Discord auto-activation for `#atlas`, `#health`, `#projects`, `#briefings`, and `#atlas-dev`
 - Per-session `ATLAS-Channel-Role.md` role context injected at session start
+- Channel user guide documenting each channel's purpose, preferred skills, cron jobs, and usage patterns
 - Pre-commit hooks with ruff (lint + format), prettier, and standard checks
 
 ### Changed

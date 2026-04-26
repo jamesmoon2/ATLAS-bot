@@ -122,7 +122,7 @@ stateDiagram-v2
 | **Provider Switching**      | Switch the harness globally with `ATLAS_AGENT_PROVIDER=claude` or `ATLAS_AGENT_PROVIDER=codex` |
 | **Model Switching**         | Switch models per channel based on the active provider                                         |
 | **Attachment Support**      | Upload images and PDFs to Discord; the active harness reads them from the session directory    |
-| **Scheduled Automation**    | 12 cron jobs: briefings, reminders, archival, health checks, and more                          |
+| **Scheduled Automation**    | 14 cron jobs: briefings, reminders, archival, health checks, and more                          |
 | **MCP Integrations**        | Oura Ring, WHOOP, Google Calendar, Gmail, and Weather data via MCP servers                     |
 | **ATLAS Skills**            | Reusable skills for briefings, workout logging, training plans, health monitoring, and reviews |
 | **Second Brain Librarian**  | Vault indexing, note recall, open-loop review, orphan-note detection, and twice-weekly digests |
@@ -188,13 +188,13 @@ python bot.py
 
 ATLAS auto-activates in the channels declared in `channel_configs.py`:
 
-| Channel      | Role                                                         |
-| ------------ | ------------------------------------------------------------ |
-| `#atlas`     | General conversation and catch-all assistant work            |
-| `#health`    | Health, medications, recovery, Oura, WHOOP, Garmin, training |
-| `#projects`  | Project work, tasks, decisions, stale scans, vault follow-up |
-| `#briefings` | Read-mostly daily/weekly summaries and ambient reports       |
-| `#atlas-dev` | ATLAS harness work, operational alerts, bot development      |
+| Channel      | Role                                                         | Preferred Use                           |
+| ------------ | ------------------------------------------------------------ | --------------------------------------- |
+| `#atlas`     | General conversation and catch-all assistant work            | Cross-domain work and ad hoc questions  |
+| `#health`    | Health, medications, recovery, Oura, WHOOP, Garmin, training | Logging, training plans, health changes |
+| `#projects`  | Project work, tasks, decisions, stale scans, vault follow-up | Next actions and second-brain cleanup   |
+| `#briefings` | Read-mostly daily/weekly summaries and ambient reports       | Scheduled reports and quick follow-ups  |
+| `#atlas-dev` | ATLAS harness work, operational alerts, bot development      | CI, MCP auth, provider and bot ops      |
 
 For production, set the matching `ATLAS_CHANNEL_ID_*` variables so Discord channel renames do not break routing. Channel names remain a bootstrap fallback for development and tests.
 
@@ -209,6 +209,9 @@ Cron notifications route to channel-specific webhooks. If a channel webhook is u
 ```text
 configured webhook -> DISCORD_WEBHOOK_ATLAS -> DISCORD_WEBHOOK_URL
 ```
+
+See the [ATLAS Channel User Guide](docs/channel-user-guide.md) for which skills and cron jobs belong
+to each channel and how to use the channels day to day.
 
 ### Provider Switching
 
@@ -241,6 +244,7 @@ Operational notes:
 ```
 atlas-bot/
 ├── bot.py                    # Main Discord bot
+├── channel_configs.py        # Configured Discord channel roles and routing
 ├── garmin_workout_fallback.py # Repo-native Garmin workout lookup fallback
 ├── med_config.py             # Shared medication config loader
 ├── meds.json                 # Medication config (gitignored — personal health data)
@@ -252,12 +256,15 @@ atlas-bot/
 │   ├── jobs.json             # Job definitions (schedules, prompts, tools)
 │   ├── state/
 │   │   └── last_runs.json    # Tracks last run times to prevent duplicates
-│   ├── context_drift.sh      # Weekly context consistency check
+│   ├── context_drift.sh      # Retired shim; context drift runs through jobs.json
 │   ├── daily_summary.sh      # End-of-day summary generator
 │   ├── med_reminder.sh       # Medication reminder via webhook
 │   ├── session_archive.sh    # Nightly session archive and reset
-│   ├── task_triage.sh        # Task prioritization helper
+│   ├── task_triage.sh        # Retired shim; project triage belongs in jobs.json
 │   └── vault_index.py        # Builds machine-readable vault index
+├── docs/
+│   ├── channel-user-guide.md # How to use each configured Discord channel
+│   └── google-bot-account-setup.md
 ├── hooks/
 │   ├── tasks_summary.sh      # SessionStart: inject due tasks
 │   ├── recent_changes.sh     # SessionStart: inject recent file changes
@@ -285,6 +292,7 @@ atlas-bot/
 │       ├── log-cardio.md
 │       ├── log-medication.md
 │       ├── second-brain-librarian.md
+│       ├── backend-concepts-lesson.md
 │       ├── weekly-review.md
 │       └── weekly-training-planner.md
 ├── etc/
@@ -299,6 +307,7 @@ atlas-bot/
 │       │   └── settings.local.json  # Harness permissions
 │       ├── AGENTS.md                # Generated Codex session instructions when Codex is active
 │       ├── ATLAS-Garmin-Workout-Helper.md  # Garmin MCP/fallback instructions
+│       ├── ATLAS-Channel-Role.md    # Generated channel purpose and preferred-skill context
 │       ├── attachments/             # Downloaded Discord attachments
 │       └── model.txt                # Channel model preference
 ├── logs/
@@ -392,22 +401,22 @@ The cron dispatcher (`cron/dispatcher.py`) runs every minute via `run_cron.sh` a
 
 When `ATLAS_AGENT_PROVIDER=codex`, agent-backed cron jobs automatically get a longer timeout budget because Codex is slower in unattended runs. The default is `3x` the configured job timeout, adjustable with `ATLAS_CODEX_CRON_TIMEOUT_MULTIPLIER`. If a specific job needs custom tuning later, `cron/jobs.json` also supports explicit `timeout_seconds_by_provider` overrides.
 
-| Job                     | Schedule        | Description                                                |
-| ----------------------- | --------------- | ---------------------------------------------------------- |
-| Morning Briefing        | 5:30 AM daily   | Weather, calendar, training plan, medications, recovery    |
-| Daily Summary           | 11:55 PM daily  | End-of-day review, context file updates                    |
-| Session Archive         | 12:05 AM daily  | Archive session data, reset after the nightly summary      |
-| Weekly Training Planner | 12:00 PM Sun    | Plan next week's training based on recovery and calendar   |
-| MCP Health Check        | 6:00 AM Mon     | Validate auth for Calendar, Gmail, Oura, and Garmin        |
-| Stale Project Detector  | 8:00 AM Sat     | Scan vault for projects untouched 30+ days                 |
-| Context Drift Detector  | 8:00 AM Sun     | Check ATLAS-Context.md for consistency                     |
-| Health Pattern Monitor  | 10:30 AM daily  | Oura + WHOOP trend analysis, alerts only when noteworthy   |
-| Recovery Context Update | 10:00 AM daily  | Backfill Oura + WHOOP data into workout logs               |
-| Vault Index Refresh     | 2:15 AM daily   | Rebuilds `vault-index.json` and `vault-index.md`           |
-| Second Brain Librarian  | 7:45 AM Mon/Fri | Reviews recent notes, open loops, orphans, and stale notes |
-| Weekly Review           | 8:00 PM Sun     | Synthesize week's data into structured review              |
-| Medication Reminder     | 5 AM & 8 PM     | Config-driven medication reminders (reads `meds.json`)     |
-| Medication Config Sync  | 1:00 AM daily   | Syncs `meds.json` with vault `Medications.md`              |
+| Job                     | Schedule        | Channel      | Description                                                |
+| ----------------------- | --------------- | ------------ | ---------------------------------------------------------- |
+| Morning Briefing        | 5:30 AM daily   | `#briefings` | Weather, calendar, training plan, medications, recovery    |
+| Daily Summary           | 11:55 PM daily  | `#briefings` | End-of-day review, context file updates                    |
+| Weekly Review           | 8:00 PM Sun     | `#briefings` | Synthesize week's data into structured review              |
+| Weekly Training Planner | 12:00 PM Sun    | `#health`    | Plan next week's training based on recovery and calendar   |
+| Medication Reminder     | 5 AM & 8 PM     | `#health`    | Config-driven medication reminders (reads `meds.json`)     |
+| Medication Config Sync  | 1:00 AM daily   | `#health`    | Syncs `meds.json` with vault `Medications.md`              |
+| Health Pattern Monitor  | 10:30 AM daily  | `#health`    | Oura + WHOOP trend analysis, alerts only when noteworthy   |
+| Recovery Context Update | 10:00 AM daily  | Silent       | Backfill Oura + WHOOP data into workout logs               |
+| Stale Project Detector  | 8:00 AM Sat     | `#projects`  | Scan vault for projects untouched 30+ days                 |
+| Context Drift Detector  | 8:00 AM Sun     | `#projects`  | Check ATLAS-Context.md for consistency                     |
+| Second Brain Librarian  | 7:45 AM Mon/Fri | `#projects`  | Reviews recent notes, open loops, orphans, and stale notes |
+| Vault Index Refresh     | 2:15 AM daily   | Silent       | Rebuilds `vault-index.json` and `vault-index.md`           |
+| MCP Health Check        | 6:00 AM Mon     | `#atlas-dev` | Validate auth for Calendar, Gmail, Oura, and Garmin        |
+| Session Archive         | 12:05 AM daily  | `#atlas-dev` | Archive session data, reset after the nightly summary      |
 
 All times are in `America/Los_Angeles`. The dispatcher tracks last run times in `cron/state/last_runs.json` to prevent duplicate executions. Use `--run-now JOB_ID` to manually trigger a job.
 
@@ -452,17 +461,18 @@ ATLAS now uses a repo-managed `google_bot` MCP server for Gmail plus Google Cale
 
 Reusable skill definitions in `.claude/skills/` that the active harness can invoke:
 
-| Skill                     | Description                                                            |
-| ------------------------- | ---------------------------------------------------------------------- |
-| `morning-briefing`        | Daily briefing with weather, schedule, training, medications, recovery |
-| `daily-summary`           | End-of-day review of activities and structured summary                 |
-| `health-pattern-monitor`  | Analyze 10-day Oura + WHOOP trends and alert only when noteworthy      |
-| `log-workout`             | Parse freeform workout reports into structured vault logs              |
-| `log-cardio`              | Parse freeform cardio session reports into structured logs             |
-| `log-medication`          | Parse medication reports and log doses with validation                 |
-| `second-brain-librarian`  | Review note health, recent changes, open loops, and cleanup priorities |
-| `weekly-review`           | Synthesize week's data into structured review with trends and patterns |
-| `weekly-training-planner` | Recovery-aware training plan with calendar integration                 |
+| Skill                     | Preferred Channels      | Description                                                            |
+| ------------------------- | ----------------------- | ---------------------------------------------------------------------- |
+| `morning-briefing`        | `#briefings`, `#health` | Daily briefing with weather, schedule, training, medications, recovery |
+| `daily-summary`           | `#briefings`            | End-of-day review of activities and structured summary                 |
+| `weekly-review`           | `#briefings`            | Synthesize week's data into structured review with trends and patterns |
+| `health-pattern-monitor`  | `#health`               | Analyze 10-day Oura + WHOOP trends and alert only when noteworthy      |
+| `weekly-training-planner` | `#health`               | Recovery-aware training plan with calendar integration                 |
+| `log-workout`             | `#health`               | Parse freeform workout reports into structured vault logs              |
+| `log-cardio`              | `#health`               | Parse freeform cardio session reports into structured logs             |
+| `log-medication`          | `#health`               | Parse medication reports and log doses with validation                 |
+| `second-brain-librarian`  | `#projects`, `#atlas`   | Review note health, recent changes, open loops, and cleanup priorities |
+| `backend-concepts-lesson` | `#atlas-dev`, `#atlas`  | Deliver backend architecture lessons from the learning queue           |
 
 ## Development
 

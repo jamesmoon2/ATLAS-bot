@@ -2,7 +2,7 @@
 
 ## Context
 
-ATLAS is a personal AI assistant Discord bot wrapping Claude Code CLI, integrated with an Obsidian vault (second brain), Oura Ring, Google Calendar, Gmail, and weather APIs. It currently has 12 cron jobs, 6 skills, a custom Oura MCP server, and a hook-based context injection system.
+ATLAS is a personal AI assistant Discord bot wrapping Claude Code CLI or Codex, integrated with an Obsidian vault (second brain), Oura Ring, WHOOP, Garmin, Google Calendar, Gmail, and weather APIs. It currently has 14 cron jobs, 10 skills, repo-managed MCP servers, and a hook-based context injection system.
 
 The user wants to evolve ATLAS from a reactive chat assistant into a proactive, ambient personal operating system. Key goals: better cross-session memory, proactive intelligence (alerts and nudges), new integrations (Garmin, finance, web research), multi-channel Discord organization, and mobile/ambient operation. All AI processing must go through Claude Code CLI (no raw API calls).
 
@@ -31,6 +31,7 @@ Dedicated channels now have configured activation, channel role context, and cro
 - Each session gets `ATLAS-Channel-Role.md`, surfaced through `SessionStart` and generated Codex session instructions.
 - `cron/jobs.json` routes jobs to channel-specific webhooks with fallback through `DISCORD_WEBHOOK_ATLAS` and `DISCORD_WEBHOOK_URL`.
 - Legacy single-channel fallbacks remain supported.
+- Day-to-day channel usage is documented in `docs/channel-user-guide.md`.
 
 Deferred: hard skill restrictions and per-channel hook/permission sets. v1 uses soft preferred-skill hints in channel role context.
 
