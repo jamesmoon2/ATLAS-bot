@@ -221,7 +221,7 @@ Suggest synthesis when:
 
 ### New Files
 
-- `SECOND_BRAIN_LIBRARIAN_SPEC.md`
+- `docs/specs/second-brain-librarian.md`
 - `cron/vault_index.py`
 - `hooks/librarian_context.sh`
 - `.claude/skills/second-brain-librarian.md`

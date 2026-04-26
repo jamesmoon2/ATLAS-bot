@@ -211,8 +211,8 @@ Cron notifications route to channel-specific webhooks. If a channel webhook is u
 configured webhook -> DISCORD_WEBHOOK_ATLAS -> DISCORD_WEBHOOK_URL
 ```
 
-See the [ATLAS Channel User Guide](docs/channel-user-guide.md) for which skills and cron jobs belong
-to each channel and how to use the channels day to day.
+See the [ATLAS Channel User Guide](docs/guides/channel-user-guide.md) for which skills and cron jobs
+belong to each channel and how to use the channels day to day.
 
 ### Provider Switching
 
@@ -238,7 +238,8 @@ Operational notes:
 - `./set_atlas_provider.sh codex` switches to Codex, updates `.env`, and restarts `atlas-bot.service` and `cron.service`.
 - `./set_atlas_provider.sh claude` does the inverse for a fast rollback.
 - If you want Codex isolated from your personal CLI state, set `ATLAS_CODEX_HOME` to a bot-specific directory.
-- A short operator guide lives in [PROVIDER_SWITCH_USER_GUIDE.md](./PROVIDER_SWITCH_USER_GUIDE.md).
+- A short operator guide lives in
+  [docs/guides/provider-switch-user-guide.md](docs/guides/provider-switch-user-guide.md).
 
 ### File Structure
 
@@ -249,7 +250,6 @@ atlas-bot/
 ├── garmin_workout_fallback.py # Repo-native Garmin workout lookup fallback
 ├── med_config.py             # Shared medication config loader
 ├── meds.json                 # Medication config (gitignored — personal health data)
-├── meds.json.example         # Sanitized example config
 ├── send_message.py           # Send messages to Discord programmatically
 ├── run_cron.sh               # Cron entry point (called every minute)
 ├── cron/
@@ -264,8 +264,13 @@ atlas-bot/
 │   ├── task_triage.sh        # Retired shim; project triage belongs in jobs.json
 │   └── vault_index.py        # Builds machine-readable vault index
 ├── docs/
-│   ├── channel-user-guide.md # How to use each configured Discord channel
-│   └── google-bot-account-setup.md
+│   ├── guides/               # User/operator guides
+│   ├── plans/                # Roadmaps and implementation plans
+│   ├── setup/                # Setup walkthroughs
+│   └── specs/                # Feature specs and design notes
+├── examples/
+│   ├── meds.json.example
+│   └── user-profile.json.example
 ├── hooks/
 │   ├── tasks_summary.sh      # SessionStart: inject due tasks
 │   ├── recent_changes.sh     # SessionStart: inject recent file changes
@@ -446,7 +451,7 @@ Setup:
 See [`mcp-servers/oura/README.md`](mcp-servers/oura/README.md) for Oura server setup.
 See [`mcp-servers/garmin/README.md`](mcp-servers/garmin/README.md) for Garmin server setup.
 See [`mcp-servers/whoop/README.md`](mcp-servers/whoop/README.md) for WHOOP server setup.
-See [`docs/google-bot-account-setup.md`](docs/google-bot-account-setup.md) for giving ATLAS a dedicated Google identity through the repo-managed `google_bot` MCP server.
+See [`docs/setup/google-bot-account-setup.md`](docs/setup/google-bot-account-setup.md) for giving ATLAS a dedicated Google identity through the repo-managed `google_bot` MCP server.
 
 Garmin is now repo-managed for both providers:
 

@@ -1,7 +1,7 @@
 # ATLAS Multi-Channel Plan
 
-Status: implemented. See `docs/channel-user-guide.md` for the user-facing channel guide and
-`README.md` for setup/configuration.
+Status: implemented. See `../guides/channel-user-guide.md` for the user-facing channel guide and
+`../../README.md` for setup/configuration.
 
 ## Goal
 
@@ -333,7 +333,7 @@ Update:
 - `README.md` — configured channels, env vars, fallback chain, allowlist,
   channel-ID pinning, how to add/remove a channel.
 - `.env.example` — new vars + legacy vars marked as fallback.
-- `ROADMAP.md` — note multi-channel landed; flag deferred items (hard skill
+- `docs/plans/roadmap.md` — note multi-channel landed; flag deferred items (hard skill
   restriction, per-channel hooks/permissions).
 - `CHANGELOG.md` — user-visible changes (new env vars, retired scripts).
 

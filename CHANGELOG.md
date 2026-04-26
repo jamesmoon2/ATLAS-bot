@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - `meds.json` config file for medication names, doses, schedules, and vault markers (gitignored)
-- `meds.json.example` with sanitized placeholder data
+- `examples/meds.json.example` with sanitized placeholder data
 - `med_config.py` shared loader with `load_meds()` and `find_med_by_content()`
 - `med_config_sync` nightly cron job — Claude compares vault `Medications.md` against `meds.json` and auto-updates on drift
 - Cron dispatcher system with 14 scheduled jobs (`cron/dispatcher.py`, `cron/jobs.json`)
@@ -50,7 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- `user-profile.json` config file for location data (gitignored), with `.json.example` template
+- `user-profile.json` config file for location data (gitignored), with `examples/user-profile.json.example` template
 - Managed Codex profile now enables Gmail alongside Google Calendar, and Discord session permissions now allow Gmail tools for interactive bot use
 - Garmin moved from an external mirrored MCP server to a repo-managed local server with shared token resolution for Codex, Claude Code, and the fallback helper
 - `morning-briefing` skill reads weather coordinates from `user-profile.json` instead of hardcoding
