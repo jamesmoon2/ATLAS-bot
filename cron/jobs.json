@@ -84,6 +84,21 @@
       }
     },
     {
+      "id": "ops_watchdog",
+      "name": "ATLAS Ops Watchdog",
+      "schedule": "*/15 * * * *",
+      "timezone": "America/Los_Angeles",
+      "enabled": true,
+      "command": "python3 {bot_dir}/cron/ops_watchdog.py",
+      "timeout_seconds": 30,
+      "notify": {
+        "type": "webhook",
+        "url_env": "DISCORD_WEBHOOK_ATLAS_DEV",
+        "username": "ATLAS Ops Watchdog",
+        "suppress_if_contains": "NO_ALERT"
+      }
+    },
+    {
       "id": "stale_project_detector",
       "name": "Stale Project Detector",
       "schedule": "0 8 * * 6",

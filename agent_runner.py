@@ -37,6 +37,7 @@ ATLAS_SESSION_METADATA_FILENAME = "ATLAS-Session.json"
 CODEX_HOME_DIRNAME = ".atlas-codex-home"
 CODEX_AUTH_FILENAME = "auth.json"
 BWRAP_LOOPBACK_ERROR = "bwrap: loopback: Failed RTM_NEWADDR: Operation not permitted"
+CODEX_STDIN_NOTICE = "Reading additional input from stdin..."
 CODEX_SANDBOX_MODES = {"read-only", "workspace-write", "danger-full-access"}
 CODEX_CURATED_PLUGINS = ("github@openai-curated",)
 CODEX_MANAGED_MCP_SERVER_NAMES = {"garmin", "google_bot", "oura", "weather", "whoop"}
@@ -832,6 +833,12 @@ def _extract_codex_output(output_file: str) -> str:
     return path.read_text(encoding="utf-8").strip()
 
 
+def _is_codex_stdin_notice(stderr: bytes) -> bool:
+    """Return whether stderr only contains Codex's harmless closed-stdin notice."""
+    lines = [line.strip() for line in stderr.decode(errors="ignore").splitlines() if line.strip()]
+    return bool(lines) and all(line == CODEX_STDIN_NOTICE for line in lines)
+
+
 def _should_retry_codex_with_dangerous_sandbox(
     *, sandbox_mode: str, stdout: bytes, stderr: bytes
 ) -> bool:
@@ -1438,7 +1445,7 @@ async def run_job_prompt(
 
         if response:
             return response, True
-        if stderr:
+        if stderr and not _is_codex_stdin_notice(stderr):
             return f"Error (stderr): {stderr.decode().strip()}", False
         return "No response generated (empty Codex output).", False
 

@@ -22,6 +22,7 @@ from agent_runner import (
     run_channel_message,
 )
 from atlas_config import build_channel_permissions, build_channel_settings
+from atlas_diagnostics import build_diagnostics_snapshot, format_status_report
 from atlas_utils import atomic_write_json, atomic_write_text
 from channel_configs import ChannelConfig, get_channel_config, render_channel_role_context
 from med_config import find_med_by_content
@@ -248,23 +249,79 @@ def strip_bot_mentions(content: str, mentions: list) -> str:
     return stripped_content
 
 
-def build_help_text() -> str:
-    """Build the Discord help text for the current provider."""
+CHANNEL_HELP_DETAILS = {
+    "atlas": (
+        "Best for broad ATLAS conversation, quick reasoning, and cross-domain questions. "
+        "Use `!recall`, `!librarian`, or natural language when you want vault-backed context."
+    ),
+    "health": (
+        "Best for workouts, cardio, medications, symptoms, sleep, readiness, recovery, "
+        "supplements, Oura, WHOOP, and Garmin. Ask for logs, trend checks, or planning."
+    ),
+    "projects": (
+        "Best for project state, open loops, decisions, stale threads, and follow-up. "
+        "`!recall`, `!open-loops`, and `!librarian` are especially useful here."
+    ),
+    "briefings": (
+        "Best for reading scheduled reports and asking short follow-ups. It is read-mostly, "
+        "so move long working threads to `#atlas` or `#projects` when they become active work."
+    ),
+    "atlas-dev": (
+        "Best for bot operations, repo work, CI, MCP integrations, service status, and automation. "
+        "`!status` and `!ops` are designed for this channel."
+    ),
+}
+
+
+def build_help_text(channel_config: ChannelConfig | None = None) -> str:
+    """Build the Discord help text for the current provider and channel."""
     available_models = ", ".join(get_user_selectable_models())
     current_provider = get_agent_provider()
-    return (
-        "**ATLAS Commands**\n\n"
-        "**!help** - Show this message\n"
-        "**!model** - Show current model\n"
-        f"**!model <model>** - Switch model (provider: {current_provider}; available: {available_models})\n"
-        "**!recall <query>** - Search your vault like a librarian\n"
-        "**!recent-notes** - Summarize recently updated notes\n"
-        "**!open-loops** - Review unresolved tasks and waiting states\n"
-        "**!orphan-notes** - Find notes that need links or cleanup\n"
-        "**!librarian** - Generate a compact second-brain digest\n"
-        "**!reset** - Clear session and start fresh\n\n"
-        "Or just send a message and I'll respond."
+    title = (
+        f"**ATLAS Commands for #{channel_config.key}**" if channel_config else "**ATLAS Commands**"
     )
+    lines = [
+        title,
+        "",
+        "**!help** - Show this message",
+        "**!status** / **!ops** - Show bot, service, cron, and MCP helper health",
+        "**!model** - Show current model",
+        (
+            f"**!model <model>** - Switch model "
+            f"(provider: {current_provider}; available: {available_models})"
+        ),
+        "**!recall <query>** - Search your vault like a librarian",
+        "**!recent-notes** - Summarize recently updated notes",
+        "**!open-loops** - Review unresolved tasks and waiting states",
+        "**!orphan-notes** - Find notes that need links or cleanup",
+        "**!librarian** - Generate a compact second-brain digest",
+        "**!reset** - Clear session and start fresh",
+    ]
+
+    if channel_config:
+        channel_detail = CHANNEL_HELP_DETAILS.get(
+            channel_config.key, channel_config.role_description
+        )
+        lines.extend(["", "**This Channel**", channel_detail])
+        if channel_config.preferred_skills:
+            skills = ", ".join(f"`{skill}`" for skill in channel_config.preferred_skills)
+            lines.append(f"Preferred skills: {skills}")
+        if channel_config.read_mostly:
+            lines.append("Read-mostly: use this for reports and concise follow-ups.")
+    else:
+        lines.extend(
+            [
+                "",
+                "**This Channel**",
+                (
+                    "Mention ATLAS here for ad hoc help. For persistent context and channel-specific "
+                    "defaults, use one of the configured ATLAS channels."
+                ),
+            ]
+        )
+
+    lines.extend(["", "Or just send a message and I'll respond."])
+    return "\n".join(lines)
 
 
 async def handle_reset_command(message, content: str) -> bool:
@@ -279,12 +336,47 @@ async def handle_reset_command(message, content: str) -> bool:
     return True
 
 
-async def handle_help_command(message, content: str) -> bool:
+async def handle_help_command(
+    message,
+    content: str,
+    channel_config: ChannelConfig | None = None,
+) -> bool:
     """Handle help commands. Returns whether a command was handled."""
     if content.lower() not in ("!help", "help"):
         return False
 
-    await message.channel.send(build_help_text())
+    await message.channel.send(build_help_text(channel_config))
+    return True
+
+
+def _describe_channel_resolution(message, channel_config: ChannelConfig | None) -> str:
+    if channel_config is None:
+        return "mention-only ad hoc channel"
+    if channel_config.channel_id_env and os.getenv(channel_config.channel_id_env) == str(
+        message.channel.id
+    ):
+        return f"matched `{channel_config.channel_id_env}`"
+    return "matched configured channel name"
+
+
+async def handle_status_command(
+    message,
+    content: str,
+    channel_config: ChannelConfig | None = None,
+) -> bool:
+    """Handle operational status commands. Returns whether a command was handled."""
+    if content.lower() not in ("!status", "status", "!ops", "ops"):
+        return False
+
+    snapshot = build_diagnostics_snapshot()
+    channel_name = channel_config.key if channel_config else message.channel.name
+    report = format_status_report(
+        snapshot,
+        channel_label=f"#{channel_name}",
+        model=get_channel_model(message.channel.id, channel_config),
+        channel_resolution=_describe_channel_resolution(message, channel_config),
+    )
+    await send_chunked_response(message.channel, report)
     return True
 
 
@@ -474,7 +566,10 @@ async def on_message(message):
     if await handle_reset_command(message, content):
         return
 
-    if await handle_help_command(message, content):
+    if await handle_help_command(message, content, channel_config):
+        return
+
+    if await handle_status_command(message, content, channel_config):
         return
 
     if await handle_model_command(message, content, channel_config):

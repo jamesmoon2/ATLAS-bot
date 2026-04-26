@@ -15,6 +15,7 @@ def test_cron_jobs_route_to_expected_channel_webhooks():
     assert url_env_by_id["morning_briefing"] == "DISCORD_WEBHOOK_BRIEFINGS"
     assert url_env_by_id["weekly_training_planner"] == "DISCORD_WEBHOOK_HEALTH"
     assert url_env_by_id["mcp_health_check"] == "DISCORD_WEBHOOK_ATLAS_DEV"
+    assert url_env_by_id["ops_watchdog"] == "DISCORD_WEBHOOK_ATLAS_DEV"
     assert url_env_by_id["stale_project_detector"] == "DISCORD_WEBHOOK_PROJECTS"
     assert url_env_by_id["daily_summary"] == "DISCORD_WEBHOOK_BRIEFINGS"
     assert url_env_by_id["session_archive"] == "DISCORD_WEBHOOK_ATLAS_DEV"

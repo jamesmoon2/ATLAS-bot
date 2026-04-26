@@ -123,7 +123,7 @@ stateDiagram-v2
 | **Provider Switching**      | Switch the harness globally with `ATLAS_AGENT_PROVIDER=claude` or `ATLAS_AGENT_PROVIDER=codex` |
 | **Model Switching**         | Switch models per channel based on the active provider                                         |
 | **Attachment Support**      | Upload images and PDFs to Discord; the active harness reads them from the session directory    |
-| **Scheduled Automation**    | 14 cron jobs: briefings, reminders, archival, health checks, and more                          |
+| **Scheduled Automation**    | 15 cron jobs: briefings, reminders, archival, health checks, ops watchdogs, and more           |
 | **MCP Integrations**        | Oura Ring, WHOOP, Garmin, Google Calendar, Gmail, and Weather data via MCP servers             |
 | **ATLAS Skills**            | Reusable skills for briefings, workout logging, training plans, health monitoring, and reviews |
 | **Second Brain Librarian**  | Vault indexing, note recall, open-loop review, orphan-note detection, and twice-weekly digests |
@@ -164,26 +164,28 @@ python bot.py
 
 ### Environment Variables
 
-| Variable                              | Description                                                      | Required |
-| ------------------------------------- | ---------------------------------------------------------------- | -------- |
-| `DISCORD_TOKEN`                       | Discord bot token                                                | Yes      |
-| `VAULT_PATH`                          | Path to your notes/vault directory                               | Yes      |
-| `SESSIONS_DIR`                        | Where to store session data                                      | No       |
-| `BOT_DIR`                             | Bot installation directory                                       | No       |
-| `SYSTEM_PROMPT_PATH`                  | Path to system prompt file                                       | No       |
-| `CONTEXT_PATH`                        | Path to persistent context file (ATLAS-Context.md)               | No       |
-| `TASKS_FILE_PATH`                     | Path to tasks file for hook injection                            | No       |
-| `ATLAS_AGENT_PROVIDER`                | Active harness: `claude` or `codex`                              | No       |
-| `ATLAS_CLAUDE_MODEL`                  | Default Claude model for new channels                            | No       |
-| `ATLAS_CODEX_MODEL`                   | Default Codex model for new channels                             | No       |
-| `ATLAS_CODEX_REASONING_EFFORT`        | Codex reasoning effort (`low`..`xhigh`)                          | No       |
-| `ATLAS_CODEX_HOME`                    | Optional bot-specific Codex profile/home                         | No       |
-| `ATLAS_CODEX_CRON_TIMEOUT_MULTIPLIER` | Multiplier for agent cron job timeouts under Codex (default `3`) | No       |
-| `ATLAS_CHANNEL_ID_*`                  | Optional channel ID pins for configured channels                 | No       |
-| `ATLAS_CONFIGURED_CHANNELS`           | Optional comma-separated auto-activation allowlist               | No       |
-| `DISCORD_WEBHOOK_*`                   | Channel-specific webhook URLs for cron notifications             | No       |
-| `DISCORD_CHANNEL_ID`                  | Legacy channel ID fallback for `send_message.py`                 | No       |
-| `DISCORD_WEBHOOK_URL`                 | Legacy webhook fallback for cron job notifications               | No       |
+| Variable                                | Description                                                      | Required |
+| --------------------------------------- | ---------------------------------------------------------------- | -------- |
+| `DISCORD_TOKEN`                         | Discord bot token                                                | Yes      |
+| `VAULT_PATH`                            | Path to your notes/vault directory                               | Yes      |
+| `SESSIONS_DIR`                          | Where to store session data                                      | No       |
+| `BOT_DIR`                               | Bot installation directory                                       | No       |
+| `SYSTEM_PROMPT_PATH`                    | Path to system prompt file                                       | No       |
+| `CONTEXT_PATH`                          | Path to persistent context file (ATLAS-Context.md)               | No       |
+| `TASKS_FILE_PATH`                       | Path to tasks file for hook injection                            | No       |
+| `ATLAS_AGENT_PROVIDER`                  | Active harness: `claude` or `codex`                              | No       |
+| `ATLAS_CLAUDE_MODEL`                    | Default Claude model for new channels                            | No       |
+| `ATLAS_CODEX_MODEL`                     | Default Codex model for new channels                             | No       |
+| `ATLAS_CODEX_REASONING_EFFORT`          | Codex reasoning effort (`low`..`xhigh`)                          | No       |
+| `ATLAS_CODEX_HOME`                      | Optional bot-specific Codex profile/home                         | No       |
+| `ATLAS_CODEX_CRON_TIMEOUT_MULTIPLIER`   | Multiplier for agent cron job timeouts under Codex (default `3`) | No       |
+| `ATLAS_OPS_WATCHDOG_ORPHAN_MIN_SECONDS` | Minimum helper age before orphan MCP alerting (default `3600`)   | No       |
+| `ATLAS_OPS_WATCHDOG_REPEAT_SECONDS`     | Repeat window for identical watchdog alerts (default `21600`)    | No       |
+| `ATLAS_CHANNEL_ID_*`                    | Optional channel ID pins for configured channels                 | No       |
+| `ATLAS_CONFIGURED_CHANNELS`             | Optional comma-separated auto-activation allowlist               | No       |
+| `DISCORD_WEBHOOK_*`                     | Channel-specific webhook URLs for cron notifications             | No       |
+| `DISCORD_CHANNEL_ID`                    | Legacy channel ID fallback for `send_message.py`                 | No       |
+| `DISCORD_WEBHOOK_URL`                   | Legacy webhook fallback for cron job notifications               | No       |
 
 ### Configured Discord Channels
 
@@ -270,6 +272,7 @@ systemctl --user mask atlas-bot.service
 ```
 atlas-bot/
 ├── bot.py                    # Main Discord bot
+├── atlas_diagnostics.py      # Shared bot/service/cron/MCP health checks
 ├── channel_configs.py        # Configured Discord channel roles and routing
 ├── garmin_workout_fallback.py # Repo-native Garmin workout lookup fallback
 ├── med_config.py             # Shared medication config loader
@@ -284,6 +287,7 @@ atlas-bot/
 │   ├── context_drift.sh      # Retired shim; context drift runs through jobs.json
 │   ├── daily_summary.sh      # End-of-day summary generator
 │   ├── med_reminder.sh       # Medication reminder via webhook
+│   ├── ops_watchdog.py       # Silent-unless-noteworthy process hygiene checks
 │   ├── session_archive.sh    # Nightly session archive and reset
 │   ├── task_triage.sh        # Retired shim; project triage belongs in jobs.json
 │   └── vault_index.py        # Builds machine-readable vault index
@@ -404,6 +408,7 @@ The bot responds to:
 | Command             | Description                                    |
 | ------------------- | ---------------------------------------------- |
 | `!help`             | Show available commands                        |
+| `!status` / `!ops`  | Show bot, service, cron, and MCP helper health |
 | `!model`            | Show the current model for the active provider |
 | `!model <model>`    | Switch model for this channel                  |
 | `!recall <query>`   | Search the vault like a librarian              |
@@ -449,9 +454,10 @@ When `ATLAS_AGENT_PROVIDER=codex`, agent-backed cron jobs automatically get a lo
 | Second Brain Librarian  | 7:45 AM Mon/Fri | `#projects`  | Reviews recent notes, open loops, orphans, and stale notes |
 | Vault Index Refresh     | 2:15 AM daily   | Silent       | Rebuilds `vault-index.json` and `vault-index.md`           |
 | MCP Health Check        | 6:00 AM Mon     | `#atlas-dev` | Validate auth for Calendar, Gmail, Oura, and Garmin        |
+| ATLAS Ops Watchdog      | Every 15 min    | `#atlas-dev` | Alerts on duplicate bots, orphan helpers, or cron failures |
 | Session Archive         | 12:05 AM daily  | `#atlas-dev` | Archive session data, reset after the nightly summary      |
 
-All times are in `America/Los_Angeles`. The dispatcher tracks last run times in `cron/state/last_runs.json` to prevent duplicate executions. Use `--run-now JOB_ID` to manually trigger a job.
+All times are in `America/Los_Angeles`. The dispatcher tracks last run times in `cron/state/last_runs.json` to prevent duplicate executions. Use `--run-now JOB_ID` to manually trigger a job. The ops watchdog stores repeat-suppression state in `cron/state/ops_watchdog.json` so unchanged alerts do not post every run.
 
 Setup:
 

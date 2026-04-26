@@ -111,6 +111,57 @@ class TestHelpCommand:
         sent = msg.channel.send.call_args[0][0]
         assert "ATLAS Commands" in sent
 
+    @pytest.mark.asyncio
+    async def test_help_is_channel_specific(self):
+        msg = _make_message("!help", channel_name="health")
+        await bot.on_message(msg)
+        sent = msg.channel.send.call_args[0][0]
+        assert "ATLAS Commands for #health" in sent
+        assert "workouts" in sent.lower()
+        assert "log-workout" in sent
+
+    @pytest.mark.asyncio
+    async def test_help_for_mention_only_channel_explains_ad_hoc_context(self):
+        msg = _make_message("!help", channel_name="general")
+        bot.client.user.mentioned_in = MagicMock(return_value=True)
+        await bot.on_message(msg)
+        sent = msg.channel.send.call_args[0][0]
+        assert "mention ATLAS here for ad hoc help".lower() in sent.lower()
+
+
+class TestStatusCommand:
+    """!status / !ops returns operational diagnostics."""
+
+    @pytest.mark.asyncio
+    @patch("bot.format_status_report", return_value="status report")
+    @patch("bot.build_diagnostics_snapshot", return_value=object())
+    @patch("bot.run_agent", return_value="should not run")
+    async def test_status_command(self, mock_agent, mock_snapshot, mock_format):
+        msg = _make_message("!status", channel_name="atlas-dev", channel_id=500)
+
+        await bot.on_message(msg)
+
+        msg.channel.send.assert_called_once_with("status report")
+        mock_snapshot.assert_called_once_with()
+        mock_format.assert_called_once()
+        mock_agent.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch("bot.format_status_report", return_value="ops report")
+    @patch("bot.build_diagnostics_snapshot", return_value=object())
+    async def test_ops_alias_uses_channel_id_resolution(
+        self, mock_snapshot, mock_format, monkeypatch
+    ):
+        monkeypatch.setenv("ATLAS_CHANNEL_ID_ATLAS_DEV", "500")
+        msg = _make_message("!ops", channel_name="renamed-channel", channel_id=500)
+
+        await bot.on_message(msg)
+
+        msg.channel.send.assert_called_once_with("ops report")
+        _, kwargs = mock_format.call_args
+        assert kwargs["channel_label"] == "#atlas-dev"
+        assert kwargs["channel_resolution"] == "matched `ATLAS_CHANNEL_ID_ATLAS_DEV`"
+
 
 class TestResetCommand:
     """!reset / !clear clears the session."""

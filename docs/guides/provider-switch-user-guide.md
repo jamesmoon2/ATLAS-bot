@@ -87,6 +87,7 @@ That command updates `.env` and restarts both services automatically.
 The Discord workflow does not change.
 
 - `!model` shows the current model for the active provider.
+- `!status` or `!ops` shows the active provider/model plus bot, service, cron, and MCP health.
 - `!model opus` or `!model sonnet` works when the provider is Claude.
 - `!model gpt-5.4` works when the provider is Codex.
 - `!reset` clears the current channel session and starts fresh.

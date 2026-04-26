@@ -31,6 +31,13 @@ ATLAS directly when you want a response.
   dispatcher falls back to `DISCORD_WEBHOOK_ATLAS`, then `DISCORD_WEBHOOK_URL`.
 - Use `ATLAS_CONFIGURED_CHANNELS=atlas,health,briefings` as a temporary allowlist if you want only
   selected configured channels to auto-activate.
+- `!help` is channel-aware. It shows the same global command set everywhere, then adds guidance for
+  the current channel.
+- `!status` and `!ops` work in any responding channel. They are most useful in `#atlas-dev` because
+  they summarize provider/model, service state, duplicate bot risk, orphan MCP helpers, and cron
+  failures.
+- `ops_watchdog` runs every 15 minutes but suppresses identical repeat alerts for 6 hours by
+  default. `!ops` always shows the current live status on demand.
 
 ## `#atlas`
 
@@ -184,6 +191,7 @@ switching, cron behavior, and operational alerts.
 - "Fix the failing CI run."
 - "Restart the bot."
 - "Check MCP health."
+- "Run `!ops` after the restart."
 - "Why did the cron job not post?"
 - "Add a new channel/skill/job."
 
@@ -195,14 +203,16 @@ switching, cron behavior, and operational alerts.
 
 **Cron jobs**
 
-| Job                | Schedule       | What Lands Here                                           |
-| ------------------ | -------------- | --------------------------------------------------------- |
-| `mcp_health_check` | Mon 6:00 AM    | OAuth/tool availability for Calendar, Gmail, Oura, Garmin |
-| `session_archive`  | Daily 12:05 AM | Nightly session archive/reset result                      |
+| Job                | Schedule       | What Lands Here                                                                 |
+| ------------------ | -------------- | ------------------------------------------------------------------------------- |
+| `mcp_health_check` | Mon 6:00 AM    | OAuth/tool availability for Calendar, Gmail, Oura, Garmin                       |
+| `ops_watchdog`     | Every 15 min   | Only posts when duplicate bots, orphan helpers, or cron failures need attention |
+| `session_archive`  | Daily 12:05 AM | Nightly session archive/reset result                                            |
 
 **Tips**
 
 - Keep deployment and operational requests here so they do not mix with personal planning threads.
+- Run `!status` or `!ops` after restarts, provider changes, or process cleanup.
 - Use this channel for provider changes because it leaves an obvious audit trail.
 - If a cron notification is missing, check whether the target `DISCORD_WEBHOOK_*` variable is set.
 
@@ -221,6 +231,7 @@ logged under `logs/cron/`.
 | Command             | Best Channel            | Description                                |
 | ------------------- | ----------------------- | ------------------------------------------ |
 | `!help`             | Any                     | Show available commands                    |
+| `!status` / `!ops`  | `#atlas-dev`            | Show bot, service, cron, and MCP health    |
 | `!model`            | Any                     | Show the current model for this channel    |
 | `!model <model>`    | Any                     | Switch model for this channel              |
 | `!recall <query>`   | `#atlas`, `#projects`   | Search the vault like a librarian          |

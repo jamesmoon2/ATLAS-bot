@@ -352,6 +352,29 @@ async def test_run_job_prompt_claude_uses_augmented_prompt(tmp_path, monkeypatch
     assert "Do the scheduled work." in prompt
 
 
+@pytest.mark.asyncio
+async def test_run_job_prompt_codex_treats_closed_stdin_notice_as_empty_output(
+    tmp_path, monkeypatch
+):
+    async def fake_run_codex_exec(**kwargs):
+        return "", 0, b"", agent_runner.CODEX_STDIN_NOTICE.encode()
+
+    monkeypatch.setenv("ATLAS_AGENT_PROVIDER", "codex")
+    monkeypatch.setattr(agent_runner, "_run_codex_exec", fake_run_codex_exec)
+
+    output, success = await agent_runner.run_job_prompt(
+        prompt="Do the quiet scheduled work.",
+        model="gpt-5.4",
+        allowed_tools=["Read"],
+        timeout=10,
+        bot_dir=str(tmp_path),
+        vault_path=str(tmp_path / "vault"),
+    )
+
+    assert output == "No response generated (empty Codex output)."
+    assert success is False
+
+
 def test_build_codex_env_uses_managed_bot_home(tmp_path, monkeypatch):
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
     monkeypatch.delenv("ATLAS_CODEX_HOME", raising=False)

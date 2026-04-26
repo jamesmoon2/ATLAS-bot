@@ -13,7 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `examples/meds.json.example` with sanitized placeholder data
 - `med_config.py` shared loader with `load_meds()` and `find_med_by_content()`
 - `med_config_sync` nightly cron job — Claude compares vault `Medications.md` against `meds.json` and auto-updates on drift
-- Cron dispatcher system with 14 scheduled jobs (`cron/dispatcher.py`, `cron/jobs.json`)
+- Cron dispatcher system with 15 scheduled jobs (`cron/dispatcher.py`, `cron/jobs.json`)
 - Model switching per channel (`!model sonnet|opus`, defaults to opus)
 - Attachment support for images and PDFs via Discord uploads
 - MCP integrations: Oura Ring, Google Calendar, Gmail, Weather, Garmin Connect
@@ -21,7 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Medication tracking with reaction-based dose logging (checkmark reactions on reminders)
 - `send_message.py` for sending messages to Discord channels programmatically
 - Nightly session archive and reset (`cron/session_archive.sh`)
-- `!help` command showing all available commands
+- Channel-aware `!help` command showing global commands plus current-channel guidance
+- `!status` / `!ops` command for bot, service, cron, and MCP helper health
 - Three new hooks: `calendar_context.sh` (PreToolUse), `recent_summaries.sh`, `workout_oura_data.sh` (PostToolUse)
 - Persistent context file (`ATLAS-Context.md`) injected at session start
 - Context drift detector for weekly consistency checks
@@ -29,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - MCP health check job for OAuth token validation
 - Oura context updater for daily workout logs
 - Health pattern monitor — daily Oura trend analysis, alerts only when noteworthy
+- ATLAS Ops Watchdog — checks for duplicate bot processes, orphan MCP helpers, and cron failures
 - Weekly review — Sunday synthesis of daily summaries, health metrics, and project activity
 - Weekly training planner — recovery-aware training plan generation with calendar integration
 - Vault index builder (`cron/vault_index.py`) that writes `vault-index.json` and `vault-index.md`

@@ -39,6 +39,7 @@ dev = [
 py-modules = [
     "agent_exec",
     "agent_runner",
+    "atlas_diagnostics",
     "atlas_config",
     "atlas_utils",
     "bot",
