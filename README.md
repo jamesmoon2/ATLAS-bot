@@ -500,18 +500,18 @@ ATLAS now uses a repo-managed `google_bot` MCP server for Gmail plus Google Cale
 
 Reusable skill definitions in `.claude/skills/` that the active harness can invoke:
 
-| Skill                     | Preferred Channels      | Description                                                            |
-| ------------------------- | ----------------------- | ---------------------------------------------------------------------- |
-| `morning-briefing`        | `#briefings`, `#health` | Daily briefing with weather, schedule, training, medications, recovery |
-| `daily-summary`           | `#briefings`            | End-of-day review of activities and structured summary                 |
-| `weekly-review`           | `#briefings`            | Synthesize week's data into structured review with trends and patterns |
-| `health-pattern-monitor`  | `#health`               | Analyze 10-day Oura + WHOOP trends and alert only when noteworthy      |
-| `weekly-training-planner` | `#health`               | Recovery-aware training plan with calendar integration                 |
-| `log-workout`             | `#health`               | Parse freeform workout reports into structured vault logs              |
-| `log-cardio`              | `#health`               | Parse freeform cardio session reports into structured logs             |
-| `log-medication`          | `#health`               | Parse medication reports and log doses with validation                 |
-| `second-brain-librarian`  | `#projects`, `#atlas`   | Review note health, recent changes, open loops, and cleanup priorities |
-| `backend-concepts-lesson` | `#atlas-dev`, `#atlas`  | Deliver backend architecture lessons from the learning queue           |
+| Skill                     | Preferred Channels     | Description                                                            |
+| ------------------------- | ---------------------- | ---------------------------------------------------------------------- |
+| `morning-briefing`        | `#atlas`, `#health`    | Daily briefing with weather, schedule, training, medications, recovery |
+| `daily-summary`           | `#briefings`           | End-of-day review of activities and structured summary                 |
+| `weekly-review`           | `#briefings`           | Synthesize week's data into structured review with trends and patterns |
+| `health-pattern-monitor`  | `#health`              | Analyze 10-day Oura + WHOOP trends and alert only when noteworthy      |
+| `weekly-training-planner` | `#health`              | Recovery-aware training plan with calendar integration                 |
+| `log-workout`             | `#health`              | Parse freeform workout reports into structured vault logs              |
+| `log-cardio`              | `#health`              | Parse freeform cardio session reports into structured logs             |
+| `log-medication`          | `#health`              | Parse medication reports and log doses with validation                 |
+| `second-brain-librarian`  | `#projects`, `#atlas`  | Review note health, recent changes, open loops, and cleanup priorities |
+| `backend-concepts-lesson` | `#atlas-dev`, `#atlas` | Deliver backend architecture lessons from the learning queue           |
 
 ## Development
 

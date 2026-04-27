@@ -56,13 +56,17 @@ general assistant thread.
 
 | Skill                     | Use It For                                        |
 | ------------------------- | ------------------------------------------------- |
+| `morning-briefing`        | Daily weather, calendar, training, meds, recovery |
 | `second-brain-librarian`  | Vault recall, open-loop review, note cleanup      |
 | `backend-concepts-lesson` | Short backend architecture lessons from the queue |
 
 **Cron jobs**
 
-No job targets `#atlas` directly by default. It is the fallback webhook target when a
-channel-specific webhook is missing.
+| Job                | Schedule      | What Lands Here                             |
+| ------------------ | ------------- | ------------------------------------------- |
+| `morning_briefing` | Daily 5:30 AM | Weather, calendar, training, meds, recovery |
+
+`#atlas` is also the fallback webhook target when a channel-specific webhook is missing.
 
 **Tips**
 
@@ -110,7 +114,7 @@ symptoms, or what changed.
 - For logging, say what happened in plain language. ATLAS will structure the note.
 - Add "with notes: ..." when logging symptoms, pain, or recovery context.
 - React to medication reminders with a checkmark to log the dose through the bot.
-- Use `#briefings` to read the morning summary; use `#health` to ask follow-up questions or make
+- Use `#atlas` to read the morning summary; use `#health` to ask follow-up questions or make
   changes.
 
 ## `#projects`
@@ -154,26 +158,23 @@ glance. The bot can answer here, but long back-and-forth work usually belongs in
 
 **Good uses**
 
-- Read the morning briefing.
 - Read the end-of-day summary.
 - Read the weekly review.
 - Ask a short clarification about a report.
 
 **Preferred skills**
 
-| Skill              | Use It For                                               |
-| ------------------ | -------------------------------------------------------- |
-| `morning-briefing` | Daily weather, calendar, training, meds, and recovery    |
-| `daily-summary`    | End-of-day activity and context summary                  |
-| `weekly-review`    | Weekly training, health, medication, and progress review |
+| Skill           | Use It For                                               |
+| --------------- | -------------------------------------------------------- |
+| `daily-summary` | End-of-day activity and context summary                  |
+| `weekly-review` | Weekly training, health, medication, and progress review |
 
 **Cron jobs**
 
-| Job                | Schedule       | What Lands Here                                            |
-| ------------------ | -------------- | ---------------------------------------------------------- |
-| `morning_briefing` | Daily 5:30 AM  | Weather, calendar, training, meds, recovery                |
-| `daily_summary`    | Daily 11:55 PM | Daily context, file, task, decision, and health recap      |
-| `weekly_review`    | Sun 8:00 PM    | Seven-day health, training, adherence, and progress review |
+| Job             | Schedule       | What Lands Here                                            |
+| --------------- | -------------- | ---------------------------------------------------------- |
+| `daily_summary` | Daily 11:55 PM | Daily context, file, task, decision, and health recap      |
+| `weekly_review` | Sun 8:00 PM    | Seven-day health, training, adherence, and progress review |
 
 **Tips**
 

@@ -26,7 +26,11 @@ CHANNEL_CONFIGS: dict[str, ChannelConfig] = {
         role_description="General ATLAS conversation. Broad context; no specialization.",
         webhook_env="DISCORD_WEBHOOK_ATLAS",
         channel_id_env="ATLAS_CHANNEL_ID_ATLAS",
-        preferred_skills=("second-brain-librarian", "backend-concepts-lesson"),
+        preferred_skills=(
+            "morning-briefing",
+            "second-brain-librarian",
+            "backend-concepts-lesson",
+        ),
     ),
     "health": ChannelConfig(
         key="health",
@@ -64,7 +68,7 @@ CHANNEL_CONFIGS: dict[str, ChannelConfig] = {
         webhook_env="DISCORD_WEBHOOK_BRIEFINGS",
         channel_id_env="ATLAS_CHANNEL_ID_BRIEFINGS",
         read_mostly=True,
-        preferred_skills=("morning-briefing", "daily-summary", "weekly-review"),
+        preferred_skills=("daily-summary", "weekly-review"),
     ),
     "atlas-dev": ChannelConfig(
         key="atlas-dev",

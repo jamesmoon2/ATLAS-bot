@@ -12,7 +12,7 @@ def test_cron_jobs_route_to_expected_channel_webhooks():
         if (job.get("notify") or {}).get("type") == "webhook"
     }
 
-    assert url_env_by_id["morning_briefing"] == "DISCORD_WEBHOOK_BRIEFINGS"
+    assert url_env_by_id["morning_briefing"] == "DISCORD_WEBHOOK_ATLAS"
     assert url_env_by_id["weekly_training_planner"] == "DISCORD_WEBHOOK_HEALTH"
     assert url_env_by_id["mcp_health_check"] == "DISCORD_WEBHOOK_ATLAS_DEV"
     assert url_env_by_id["ops_watchdog"] == "DISCORD_WEBHOOK_ATLAS_DEV"

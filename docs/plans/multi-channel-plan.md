@@ -241,16 +241,16 @@ Keep one shared physical `.claude/skills/` directory. Channel role context
 
 Suggested mapping (rendered into the role context footer):
 
-| Skill                                           | Preferred channels      |
-| ----------------------------------------------- | ----------------------- |
-| `morning-briefing`                              | `#briefings`, `#health` |
-| `daily-summary`                                 | `#briefings`            |
-| `weekly-review`                                 | `#briefings`            |
-| `health-pattern-monitor`                        | `#health`               |
-| `weekly-training-planner`                       | `#health`               |
-| `log-workout` / `log-cardio` / `log-medication` | `#health`               |
-| `second-brain-librarian`                        | `#projects`, `#atlas`   |
-| `backend-concepts-lesson`                       | `#atlas-dev`, `#atlas`  |
+| Skill                                           | Preferred channels     |
+| ----------------------------------------------- | ---------------------- |
+| `morning-briefing`                              | `#atlas`, `#health`    |
+| `daily-summary`                                 | `#briefings`           |
+| `weekly-review`                                 | `#briefings`           |
+| `health-pattern-monitor`                        | `#health`              |
+| `weekly-training-planner`                       | `#health`              |
+| `log-workout` / `log-cardio` / `log-medication` | `#health`              |
+| `second-brain-librarian`                        | `#projects`, `#atlas`  |
+| `backend-concepts-lesson`                       | `#atlas-dev`, `#atlas` |
 
 `#atlas` keeps access to all skills as the catch-all. Hard restriction (per-
 channel `skills_dir` or symlink farm) is deferred — call it out explicitly in
@@ -273,7 +273,7 @@ Routing (commit to a single destination per job — no `if X exists else Y`):
 
 | Job                       | Channel      | `url_env`                   |
 | ------------------------- | ------------ | --------------------------- |
-| `morning_briefing`        | `#briefings` | `DISCORD_WEBHOOK_BRIEFINGS` |
+| `morning_briefing`        | `#atlas`     | `DISCORD_WEBHOOK_ATLAS`     |
 | `daily_summary`           | `#briefings` | `DISCORD_WEBHOOK_BRIEFINGS` |
 | `weekly_review`           | `#briefings` | `DISCORD_WEBHOOK_BRIEFINGS` |
 | `weekly_training_planner` | `#health`    | `DISCORD_WEBHOOK_HEALTH`    |

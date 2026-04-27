@@ -26,7 +26,7 @@
       "prompt": "Run the morning-briefing skill for today.\n\n**Current Time:** {current_datetime}",
       "notify": {
         "type": "webhook",
-        "url_env": "DISCORD_WEBHOOK_BRIEFINGS",
+        "url_env": "DISCORD_WEBHOOK_ATLAS",
         "username": "ATLAS Morning Briefing"
       }
     },
